@@ -1,0 +1,82 @@
+version: '3.9'
+
+# ══════════════════════════════════════════════════════════════════════
+# docker-compose.yml — API Gateway local development stack
+#
+# Starts: API Gateway + Redis (dependencies only)
+# Downstream services (Identity, Account, etc.) are stubbed/not started
+# until their features are built in later phases.
+#
+# Usage:
+#   cp .env.example .env        # fill in JWT_PUBLIC_KEY at minimum
+#   docker-compose up -d
+#   docker-compose logs -f api-gateway
+# ══════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── REDIS ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.4-alpine
+    container_name: banking-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - banking-network
+    restart: unless-stopped
+
+  # ── API GATEWAY ────────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: ../Dockerfile
+      target: runtime
+    container_name: banking-api-gateway
+    ports:
+      - "8080:8080"   # Public traffic
+      - "8081:8081"   # Management / actuator (internal use only in prod)
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - banking-network
+    restart: unless-stopped
+    # Resource limits — prevents the gateway from starving other containers
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 640M
+        reservations:
+          cpus: '0.25'
+          memory: 300M
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  banking-network:
+    driver: bridge
+    name: banking-network

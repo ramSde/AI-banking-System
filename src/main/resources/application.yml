@@ -1,0 +1,176 @@
+# ══════════════════════════════════════════════════════════════════════
+# API Gateway — application.yml
+# ALL values use ${ENV_VAR:default} pattern — zero hardcoded config.
+# Production values are injected via Kubernetes ConfigMap + Secrets.
+# Ref: https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  application:
+    name: api-gateway
+
+  # ── PROFILES ────────────────────────────────────────────────────────
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # ── CLOUD GATEWAY ───────────────────────────────────────────────────
+  # Routes are defined programmatically in GatewayRoutingConfig.java
+  # Ref: https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/
+  cloud:
+    gateway:
+      # Enable reactive HTTP client (default in SCG 4.x)
+      httpclient:
+        connect-timeout: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MS:5000}
+        response-timeout: ${GATEWAY_HTTP_RESPONSE_TIMEOUT_MS:30000}
+        pool:
+          max-connections: ${GATEWAY_HTTP_POOL_MAX_CONNECTIONS:500}
+          max-idle-time: ${GATEWAY_HTTP_POOL_MAX_IDLE_TIME_MS:20000}
+      # Default filters applied to ALL routes
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      # Metrics per route — feeds Prometheus / Grafana dashboards
+      metrics:
+        enabled: true
+        tags:
+          path:
+            enabled: true
+
+  # ── REDIS (Lettuce reactive) ─────────────────────────────────────────
+  # Used for rate limiting sliding window counters.
+  # Ref: https://lettuce.io/docs/
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT_MS:2000}
+      timeout: ${REDIS_COMMAND_TIMEOUT_MS:3000}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-idle: ${REDIS_POOL_MAX_IDLE:10}
+          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-wait: ${REDIS_POOL_MAX_WAIT_MS:3000}
+        # Shared connection pool between reactive subscriptions
+        shutdown-timeout: ${REDIS_SHUTDOWN_TIMEOUT_MS:2000}
+
+# ── SERVER ────────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8080}
+  # Context path kept empty at gateway — all routes include /api prefix
+  servlet:
+    context-path: /
+  # Netty (reactive) compression
+  compression:
+    enabled: true
+    min-response-size: ${SERVER_COMPRESSION_MIN_SIZE:1024}
+    mime-types:
+      - application/json
+      - application/xml
+      - text/html
+      - text/plain
+  # Netty-specific tuning (Spring Boot 3+ reactive server)
+  netty:
+    connection-timeout: ${SERVER_NETTY_CONNECTION_TIMEOUT_MS:10000}
+    idle-timeout: ${SERVER_NETTY_IDLE_TIMEOUT_MS:60000}
+
+# ── ACTUATOR (health, metrics, prometheus) ────────────────────────────
+# Ref: https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: ${HEALTH_SHOW_DETAILS:when-authorized}
+      probes:
+        enabled: true        # enables /actuator/health/liveness and /readiness
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,redis
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:dev}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+# ── BANKING GATEWAY PROPERTIES ────────────────────────────────────────
+banking:
+  gateway:
+    jwt:
+      # RSA public key in PEM format. Must match Identity Service's private key.
+      # In production: injected from Kubernetes Secret / HashiCorp Vault.
+      # NEVER commit actual key values to source control.
+      public-key: ${JWT_PUBLIC_KEY}
+      issuer: ${JWT_ISSUER:banking-platform}
+      audience:
+        - ${JWT_AUDIENCE:banking-api}
+
+    rate-limit:
+      requests-per-minute-per-user: ${RATE_LIMIT_PER_USER:100}
+      requests-per-minute-per-ip: ${RATE_LIMIT_PER_IP:200}
+      window-size-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+
+    cors:
+      allowed-origins:
+        - ${CORS_ALLOWED_ORIGIN_1:http://localhost:3000}
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - Idempotency-Key
+        - Accept
+        - Accept-Language
+        - X-Device-Id
+      allow-credentials: true
+      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
+
+    services:
+      # Kubernetes DNS format: http://{service-name}.{namespace}.svc.cluster.local:{port}
+      identity-service-url: ${IDENTITY_SERVICE_URL:http://localhost:8082}
+      user-service-url: ${USER_SERVICE_URL:http://localhost:8083}
+      account-service-url: ${ACCOUNT_SERVICE_URL:http://localhost:8084}
+      transaction-service-url: ${TRANSACTION_SERVICE_URL:http://localhost:8085}
+      fraud-service-url: ${FRAUD_SERVICE_URL:http://localhost:8086}
+      audit-service-url: ${AUDIT_SERVICE_URL:http://localhost:8087}
+      notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8088}
+      chat-service-url: ${CHAT_SERVICE_URL:http://localhost:8089}
+      ai-orchestration-service-url: ${AI_ORCHESTRATION_SERVICE_URL:http://localhost:8090}
+      document-ingestion-service-url: ${DOCUMENT_INGESTION_SERVICE_URL:http://localhost:8091}
+      analytics-service-url: ${ANALYTICS_SERVICE_URL:http://localhost:8092}
+      statement-service-url: ${STATEMENT_SERVICE_URL:http://localhost:8093}
+
+# ── LOGGING ───────────────────────────────────────────────────────────
+# Full structured JSON logging is configured in logback-spring.xml.
+# These properties control log levels per package.
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.banking.gateway: ${LOG_LEVEL_GATEWAY:INFO}
+    org.springframework.cloud.gateway: ${LOG_LEVEL_SCG:WARN}
+    io.lettuce: ${LOG_LEVEL_LETTUCE:WARN}
+    reactor.netty: ${LOG_LEVEL_NETTY:WARN}
+  # Logback config location (structured JSON format)
+  config: classpath:logback-spring.xml
