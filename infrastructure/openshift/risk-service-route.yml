@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: risk-service
+  labels:
+    app: risk-service
+spec:
+  host: risk-service.apps.your-cluster.com
+  to:
+    kind: Service
+    name: risk-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

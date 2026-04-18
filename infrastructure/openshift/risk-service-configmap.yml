@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: risk-service-config
+  labels:
+    app: risk-service
+data:
+  # Database Configuration
+  db.host: "postgres-service.banking.svc.cluster.local"
+  db.port: "5432"
+  db.name: "risk_db"
+  
+  # Redis Configuration
+  redis.host: "redis-service.banking.svc.cluster.local"
+  redis.port: "6379"
+  
+  # Kafka Configuration
+  kafka.bootstrap-servers: "kafka-service.banking.svc.cluster.local:9092"
+  kafka.consumer.group-id: "risk-service-consumer-group"
+  kafka.topic.login-attempted: "banking.identity.login-attempted"
+  kafka.topic.login-succeeded: "banking.identity.login-succeeded"
+  kafka.topic.risk-assessment: "banking.risk.assessment-completed"
+  kafka.topic.high-risk: "banking.risk.high-risk-detected"
+  kafka.topic.mfa-required: "banking.risk.mfa-required"
+  
+  # JWT Configuration
+  jwt.issuer: "banking-identity-service"
+  
+  # External Services
+  otp-service.url: "http://otp-service.banking.svc.cluster.local:8082/api/v1/otp"
+  identity-service.url: "http://identity-service.banking.svc.cluster.local:8081/api/v1/auth"
+  
+  # Risk Configuration
+  risk.threshold.low: "30"
+  risk.threshold.medium: "60"
+  risk.threshold.high: "100"
+  risk.cache.ttl-seconds: "300"
+  risk.weight.new-device: "25"
+  risk.weight.new-location: "20"
+  risk.weight.velocity: "15"
+  risk.weight.time-of-day: "10"
+  risk.weight.failed-attempts: "30"
+  
+  # Logging
+  logging.level.root: "INFO"
+  logging.level.com.banking: "INFO"

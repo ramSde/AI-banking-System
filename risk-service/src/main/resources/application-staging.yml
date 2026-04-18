@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/risk_db?autoReconnect=true&useSSL=true&characterEncoding=utf8
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+server:
+  port: 8083
+
+logging:
+  level:
+    root: INFO
+    com.banking: INFO
+
+jwt:
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  issuer: ${JWT_ISSUER}
+
+external:
+  otp-service:
+    url: ${OTP_SERVICE_URL}
+  identity-service:
+    url: ${IDENTITY_SERVICE_URL}

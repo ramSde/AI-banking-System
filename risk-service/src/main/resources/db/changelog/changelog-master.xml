@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Version 001: Create risk_assessment table -->
+    <include file="db/changelog/V001__create_risk_assessment.sql"/>
+
+    <!-- Version 002: Create risk_rule table -->
+    <include file="db/changelog/V002__create_risk_rule.sql"/>
+
+    <!-- Version 003: Create risk_history table -->
+    <include file="db/changelog/V003__create_risk_history.sql"/>
+
+    <!-- Version 004: Seed default risk rules -->
+    <include file="db/changelog/V004__seed_risk_rules.sql"/>
+
+</databaseChangeLog>
