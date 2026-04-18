@@ -1,0 +1,85 @@
+# ══════════════════════════════════════════════════════════════════════
+# API Gateway — application-staging.yml
+# Staging environment configuration
+# Used for pre-production testing in OpenShift
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: staging
+
+# ── STAGING SERVER SETTINGS ──────────────────────────────────────────
+server:
+  port: 8080
+
+management:
+  server:
+    port: 8081
+  endpoint:
+    health:
+      show-details: when-authorized  # Limited health details in staging
+
+# ── STAGING REDIS SETTINGS ───────────────────────────────────────────
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}  # Injected from OpenShift ConfigMap
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}  # Injected from OpenShift Secret
+      database: ${REDIS_DATABASE:0}
+
+# ── STAGING BANKING PROPERTIES ───────────────────────────────────────
+banking:
+  gateway:
+    jwt:
+      # RSA public key injected from OpenShift Secret
+      public-key: ${JWT_PUBLIC_KEY}
+      issuer: ${JWT_ISSUER:banking-platform}
+      audience:
+        - ${JWT_AUDIENCE:banking-api}
+
+    rate-limit:
+      requests-per-minute-per-user: ${RATE_LIMIT_PER_USER:100}
+      requests-per-minute-per-ip: ${RATE_LIMIT_PER_IP:200}
+      window-size-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+
+    cors:
+      allowed-origins:
+        - ${CORS_ALLOWED_ORIGIN_1}  # Staging frontend URL
+        - ${CORS_ALLOWED_ORIGIN_2}  # Additional staging URL if needed
+      allow-credentials: true
+      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
+
+    services:
+      # OpenShift service DNS names for staging namespace
+      identity-service-url: http://identity-service.banking-staging.svc.cluster.local:8080
+      user-service-url: http://user-service.banking-staging.svc.cluster.local:8080
+      account-service-url: http://account-service.banking-staging.svc.cluster.local:8080
+      transaction-service-url: http://transaction-service.banking-staging.svc.cluster.local:8080
+      fraud-service-url: http://fraud-service.banking-staging.svc.cluster.local:8080
+      audit-service-url: http://audit-service.banking-staging.svc.cluster.local:8080
+      notification-service-url: http://notification-service.banking-staging.svc.cluster.local:8080
+      chat-service-url: http://chat-service.banking-staging.svc.cluster.local:8080
+      ai-orchestration-service-url: http://ai-orchestration-service.banking-staging.svc.cluster.local:8080
+      document-ingestion-service-url: http://document-ingestion-service.banking-staging.svc.cluster.local:8080
+      analytics-service-url: http://analytics-service.banking-staging.svc.cluster.local:8080
+      statement-service-url: http://statement-service.banking-staging.svc.cluster.local:8080
+
+# ── STAGING LOGGING ──────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.banking.gateway: INFO
+    org.springframework.cloud.gateway: WARN
+    org.springframework.security: WARN
+    io.lettuce: WARN
+    reactor.netty: WARN
+
+# ── STAGING TRACING ──────────────────────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}  # 10% sampling in staging
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}  # Staging Jaeger endpoint

@@ -1,0 +1,86 @@
+# ══════════════════════════════════════════════════════════════════════
+# API Gateway — application-test.yml
+# Test environment configuration
+# Used for unit and integration tests
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: test
+
+# ── TEST SERVER SETTINGS ─────────────────────────────────────────────
+server:
+  port: 0  # Random port for tests
+
+management:
+  server:
+    port: 0  # Random port for tests
+
+# ── TEST REDIS SETTINGS (Embedded) ───────────────────────────────────
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+      database: 1  # Use different database for tests
+
+# ── TEST BANKING PROPERTIES ──────────────────────────────────────────
+banking:
+  gateway:
+    jwt:
+      # Test RSA public key (matches test private key)
+      public-key: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
+        fGnJm6gOdrj8ym3rFkEjWT2btf06kkstX2LvAjYdgGnI8Ej2BpmfciHlMa8sc4VQ
+        kOKvjgdHBmGHqmM5dcgKxYWtLVHZ6z/LKnZyuGBrBBYklJGdO6z1xWxJw4ej2UcN
+        lXxyFn6vNjvQoaq30cINhw4f2VdF9yxqHcauHOobwuIM3fRZ6s/iiPPFRTAcrbBY
+        uqBInrT3A/sczRxaJuDrLNuqoF4uGxiX+zM9XYn2br/iDo05jK6oOTu5WSOCxQKo
+        gnNjKAEHNziV+y8CLWEUBtxCRczfN7WIwVBd7YYP2oNnMkXzBMO0QP2VF2lWT2kF
+        QIDAQAB
+        -----END PUBLIC KEY-----
+      issuer: banking-platform-test
+      audience:
+        - banking-api-test
+
+    rate-limit:
+      requests-per-minute-per-user: 10000  # High limits for tests
+      requests-per-minute-per-ip: 20000
+      window-size-seconds: 60
+
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://localhost:3001
+      allow-credentials: true
+      max-age-seconds: 3600
+
+    services:
+      # Mock service URLs for tests
+      identity-service-url: http://localhost:8082
+      user-service-url: http://localhost:8083
+      account-service-url: http://localhost:8084
+      transaction-service-url: http://localhost:8085
+      fraud-service-url: http://localhost:8086
+      audit-service-url: http://localhost:8087
+      notification-service-url: http://localhost:8088
+      chat-service-url: http://localhost:8089
+      ai-orchestration-service-url: http://localhost:8090
+      document-ingestion-service-url: http://localhost:8091
+      analytics-service-url: http://localhost:8092
+      statement-service-url: http://localhost:8093
+
+# ── TEST LOGGING ─────────────────────────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.banking.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
+
+# ── TEST TRACING ─────────────────────────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: 0.0  # Disable tracing in tests

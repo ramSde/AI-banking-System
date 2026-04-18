@@ -1,0 +1,81 @@
+# ══════════════════════════════════════════════════════════════════════
+# API Gateway — OpenShift ConfigMap
+# Non-sensitive configuration values for production
+# ══════════════════════════════════════════════════════════════════════
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: banking-prod
+  labels:
+    app: api-gateway
+    component: gateway
+data:
+  # Server Configuration
+  SERVER_PORT: "8080"
+  MANAGEMENT_PORT: "8081"
+  
+  # Redis Configuration
+  REDIS_HOST: "redis-service.banking-prod.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DATABASE: "0"
+  REDIS_CONNECT_TIMEOUT_MS: "2000"
+  REDIS_COMMAND_TIMEOUT_MS: "3000"
+  REDIS_POOL_MAX_ACTIVE: "50"
+  REDIS_POOL_MAX_IDLE: "20"
+  REDIS_POOL_MIN_IDLE: "5"
+  REDIS_POOL_MAX_WAIT_MS: "3000"
+  REDIS_SHUTDOWN_TIMEOUT_MS: "2000"
+  
+  # JWT Configuration
+  JWT_ISSUER: "banking-platform"
+  JWT_AUDIENCE: "banking-api"
+  
+  # Rate Limiting Configuration
+  RATE_LIMIT_PER_USER: "60"
+  RATE_LIMIT_PER_IP: "120"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+  
+  # CORS Configuration
+  CORS_ALLOWED_ORIGIN_1: "https://banking.your-domain.com"
+  CORS_MAX_AGE_SECONDS: "7200"
+  
+  # Downstream Services (OpenShift DNS)
+  IDENTITY_SERVICE_URL: "http://identity-service.banking-prod.svc.cluster.local:8080"
+  USER_SERVICE_URL: "http://user-service.banking-prod.svc.cluster.local:8080"
+  ACCOUNT_SERVICE_URL: "http://account-service.banking-prod.svc.cluster.local:8080"
+  TRANSACTION_SERVICE_URL: "http://transaction-service.banking-prod.svc.cluster.local:8080"
+  FRAUD_SERVICE_URL: "http://fraud-service.banking-prod.svc.cluster.local:8080"
+  AUDIT_SERVICE_URL: "http://audit-service.banking-prod.svc.cluster.local:8080"
+  NOTIFICATION_SERVICE_URL: "http://notification-service.banking-prod.svc.cluster.local:8080"
+  CHAT_SERVICE_URL: "http://chat-service.banking-prod.svc.cluster.local:8080"
+  AI_ORCHESTRATION_SERVICE_URL: "http://ai-orchestration-service.banking-prod.svc.cluster.local:8080"
+  DOCUMENT_INGESTION_SERVICE_URL: "http://document-ingestion-service.banking-prod.svc.cluster.local:8080"
+  ANALYTICS_SERVICE_URL: "http://analytics-service.banking-prod.svc.cluster.local:8080"
+  STATEMENT_SERVICE_URL: "http://statement-service.banking-prod.svc.cluster.local:8080"
+  
+  # Gateway HTTP Client Configuration
+  GATEWAY_HTTP_CONNECT_TIMEOUT_MS: "5000"
+  GATEWAY_HTTP_RESPONSE_TIMEOUT_MS: "30000"
+  GATEWAY_HTTP_POOL_MAX_CONNECTIONS: "500"
+  GATEWAY_HTTP_POOL_MAX_IDLE_TIME_MS: "20000"
+  
+  # Server Configuration
+  SERVER_COMPRESSION_MIN_SIZE: "1024"
+  SERVER_NETTY_CONNECTION_TIMEOUT_MS: "10000"
+  SERVER_NETTY_IDLE_TIMEOUT_MS: "60000"
+  
+  # Health Check Configuration
+  HEALTH_SHOW_DETAILS: "never"
+  
+  # Logging Configuration
+  LOG_LEVEL_ROOT: "WARN"
+  LOG_LEVEL_GATEWAY: "INFO"
+  LOG_LEVEL_SCG: "ERROR"
+  LOG_LEVEL_LETTUCE: "ERROR"
+  LOG_LEVEL_NETTY: "ERROR"
+  
+  # Tracing Configuration
+  TRACING_SAMPLING_PROBABILITY: "0.01"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces"

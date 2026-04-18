@@ -1,0 +1,120 @@
+# ══════════════════════════════════════════════════════════════════════
+# API Gateway — application-prod.yml
+# Production environment configuration
+# Used for production deployment in OpenShift
+# ALL sensitive values MUST be injected from OpenShift Secrets
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: prod
+
+# ── PRODUCTION SERVER SETTINGS ───────────────────────────────────────
+server:
+  port: 8080
+  # Production-grade compression settings
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types:
+      - application/json
+      - application/xml
+      - text/html
+      - text/plain
+      - text/css
+      - application/javascript
+
+management:
+  server:
+    port: 8081
+  endpoint:
+    health:
+      show-details: never  # Never show health details in production
+  # Production metrics configuration
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+        step: 30s  # 30-second intervals for production monitoring
+
+# ── PRODUCTION REDIS SETTINGS ────────────────────────────────────────
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}  # Injected from OpenShift ConfigMap
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}  # Injected from OpenShift Secret
+      database: ${REDIS_DATABASE:0}
+      ssl: ${REDIS_SSL_ENABLED:true}  # Enable SSL in production
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:50}  # Higher pool size for production
+          max-idle: ${REDIS_POOL_MAX_IDLE:20}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+          max-wait: ${REDIS_POOL_MAX_WAIT_MS:3000}
+
+# ── PRODUCTION BANKING PROPERTIES ────────────────────────────────────
+banking:
+  gateway:
+    jwt:
+      # RSA public key MUST be injected from OpenShift Secret
+      public-key: ${JWT_PUBLIC_KEY}
+      issuer: ${JWT_ISSUER}
+      audience:
+        - ${JWT_AUDIENCE}
+
+    rate-limit:
+      # Production rate limits (more restrictive)
+      requests-per-minute-per-user: ${RATE_LIMIT_PER_USER:60}
+      requests-per-minute-per-ip: ${RATE_LIMIT_PER_IP:120}
+      window-size-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+
+    cors:
+      allowed-origins:
+        - ${CORS_ALLOWED_ORIGIN_1}  # Production frontend URL (HTTPS only)
+        - ${CORS_ALLOWED_ORIGIN_2}  # Additional production URL if needed
+      allow-credentials: true
+      max-age-seconds: ${CORS_MAX_AGE_SECONDS:7200}  # 2 hours cache
+
+    services:
+      # OpenShift service DNS names for production namespace
+      identity-service-url: http://identity-service.banking-prod.svc.cluster.local:8080
+      user-service-url: http://user-service.banking-prod.svc.cluster.local:8080
+      account-service-url: http://account-service.banking-prod.svc.cluster.local:8080
+      transaction-service-url: http://transaction-service.banking-prod.svc.cluster.local:8080
+      fraud-service-url: http://fraud-service.banking-prod.svc.cluster.local:8080
+      audit-service-url: http://audit-service.banking-prod.svc.cluster.local:8080
+      notification-service-url: http://notification-service.banking-prod.svc.cluster.local:8080
+      chat-service-url: http://chat-service.banking-prod.svc.cluster.local:8080
+      ai-orchestration-service-url: http://ai-orchestration-service.banking-prod.svc.cluster.local:8080
+      document-ingestion-service-url: http://document-ingestion-service.banking-prod.svc.cluster.local:8080
+      analytics-service-url: http://analytics-service.banking-prod.svc.cluster.local:8080
+      statement-service-url: http://statement-service.banking-prod.svc.cluster.local:8080
+
+# ── PRODUCTION LOGGING ───────────────────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.banking.gateway: INFO  # Application logs at INFO level
+    org.springframework.cloud.gateway: ERROR  # Only errors from gateway
+    org.springframework.security: ERROR  # Only security errors
+    io.lettuce: ERROR  # Only Redis errors
+    reactor.netty: ERROR  # Only Netty errors
+
+# ── PRODUCTION TRACING ───────────────────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.01}  # 1% sampling in production
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}  # Production Jaeger endpoint
+
+# ── PRODUCTION SECURITY HEADERS ──────────────────────────────────────
+server:
+  # Additional security configuration for production
+  forward-headers-strategy: framework  # Trust proxy headers
+  tomcat:
+    remoteip:
+      protocol-header: x-forwarded-proto
+      remote-ip-header: x-forwarded-for
