@@ -21,9 +21,10 @@
     <!-- Modules -->
     <modules>
         <module>common-dto</module>
-        <module>security-lib</module>
-        <module>kafka-lib</module>
-        <module>logging-lib</module>
+        <!-- Future shared modules -->
+        <!-- <module>security-lib</module> -->
+        <!-- <module>kafka-lib</module> -->
+        <!-- <module>logging-lib</module> -->
     </modules>
 
 </project>

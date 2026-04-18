@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: identity-service-config
+  namespace: banking-platform
+  labels:
+    app: identity-service
+data:
+  # Database configuration
+  db.host: "postgres-service.banking-platform.svc.cluster.local"
+  db.port: "5432"
+  db.name: "identity_db"
+  
+  # Redis configuration
+  redis.host: "redis-service.banking-platform.svc.cluster.local"
+  redis.port: "6379"
+  
+  # Kafka configuration
+  kafka.bootstrap-servers: "kafka-service.banking-platform.svc.cluster.local:9092"
+  
+  # OpenTelemetry configuration
+  otel.endpoint: "http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces"
+  
+  # JWT configuration (non-sensitive)
+  jwt.issuer: "banking-platform"
+  jwt.audience: "banking-api"
+  jwt.access-token-ttl: "15"
+  jwt.refresh-token-ttl: "7"
+  
+  # Password policy
+  password.bcrypt-strength: "12"
+  password.min-length: "8"
+  password.require-uppercase: "true"
+  password.require-lowercase: "true"
+  password.require-digit: "true"
+  password.require-special: "true"
+  
+  # Security settings
+  max-login-attempts: "5"
+  lockout-duration-minutes: "30"

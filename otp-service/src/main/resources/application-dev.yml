@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/otp_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+
+server:
+  port: 8082
+
+logging:
+  level:
+    root: INFO
+    com.banking: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+otp:
+  ttl-seconds: 300
+  max-attempts: 5
+
+management:
+  endpoint:
+    health:
+      show-details: always

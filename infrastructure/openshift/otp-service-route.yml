@@ -1,0 +1,21 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: otp-service
+  namespace: banking-platform
+  labels:
+    app: otp-service
+    tier: backend
+    component: security
+spec:
+  host: otp-service.banking-platform.svc.cluster.local
+  to:
+    kind: Service
+    name: otp-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

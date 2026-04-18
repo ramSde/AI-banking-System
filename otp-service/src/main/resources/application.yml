@@ -1,0 +1,166 @@
+spring:
+  application:
+    name: otp-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:otp_db}?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+      connection-test-query: SELECT 1
+      pool-name: OtpServiceHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/changelog-master.xml
+    default-schema: public
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-idle: ${REDIS_POOL_MAX_IDLE:10}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+          max-wait: ${REDIS_POOL_MAX_WAIT:2000}
+      timeout: 3000
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: ${KAFKA_PRODUCER_ACKS:all}
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+      properties:
+        enable.idempotence: ${KAFKA_PRODUCER_ENABLE_IDEMPOTENCE:true}
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 10
+        batch.size: 16384
+        compression.type: snappy
+  
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+server:
+  port: ${SERVER_PORT:8082}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    accept-count: 100
+    connection-timeout: 20000
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8082}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+    prometheus:
+      enabled: ${PROMETHEUS_ENABLED:true}
+  metrics:
+    export:
+      prometheus:
+        enabled: ${PROMETHEUS_ENABLED:true}
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:dev}
+  tracing:
+    sampling:
+      probability: 1.0
+
+otp:
+  length: ${OTP_LENGTH:6}
+  ttl-seconds: ${OTP_TTL_SECONDS:300}
+  max-attempts: ${OTP_MAX_ATTEMPTS:3}
+  rate-limit:
+    per-user: ${OTP_RATE_LIMIT_PER_USER:5}
+    window-seconds: ${OTP_RATE_LIMIT_WINDOW_SECONDS:300}
+  totp:
+    issuer: ${TOTP_ISSUER:BankingPlatform}
+    period-seconds: ${TOTP_PERIOD_SECONDS:30}
+    digits: ${TOTP_DIGITS:6}
+    algorithm: ${TOTP_ALGORITHM:HmacSHA1}
+    time-step-tolerance: ${TOTP_TIME_STEP_TOLERANCE:1}
+  backup-code:
+    length: ${BACKUP_CODE_LENGTH:12}
+    count: ${BACKUP_CODE_COUNT:8}
+  bcrypt:
+    strength: ${BCRYPT_STRENGTH:12}
+
+jwt:
+  public-key-path: ${JWT_PUBLIC_KEY_PATH:/keys/public_key.pem}
+  issuer: ${JWT_ISSUER:banking-identity-service}
+
+kafka:
+  topics:
+    mfa-enrolled: ${KAFKA_TOPIC_MFA_ENROLLED:banking.otp.mfa-enrolled}
+    otp-verified: ${KAFKA_TOPIC_OTP_VERIFIED:banking.otp.otp-verified}
+    backup-code-used: ${KAFKA_TOPIC_BACKUP_CODE_USED:banking.otp.backup-code-used}
+
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8090/api/v1/notifications}
+    timeout: ${NOTIFICATION_SERVICE_TIMEOUT:5000}
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.banking: ${LOGGING_LEVEL_COM_BANKING:DEBUG}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  file:
+    name: ${LOGGING_FILE_PATH:/var/log/otp-service}/otp-service.log
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
