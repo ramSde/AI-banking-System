@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Identity Service Database Changelog Master                      -->
+    <!-- All migrations are versioned and include rollback support       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- V001: Create users table -->
+    <include file="db/changelog/migrations/V001__create_users_table.sql"/>
+
+    <!-- V002: Create credentials table -->
+    <include file="db/changelog/migrations/V002__create_credentials_table.sql"/>
+
+    <!-- V003: Create refresh_token_audit table -->
+    <include file="db/changelog/migrations/V003__create_refresh_token_audit_table.sql"/>
+
+    <!-- V004: Create indexes -->
+    <include file="db/changelog/migrations/V004__create_indexes.sql"/>
+
+    <!-- V005: Seed reference data -->
+    <include file="db/changelog/migrations/V005__seed_reference_data.sql"/>
+
+</databaseChangeLog>

@@ -1,0 +1,97 @@
+# ══════════════════════════════════════════════════════════════════════
+# Identity Service — application-dev.yml
+# Development profile configuration
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: dev
+
+  # ── DATABASE (Local PostgreSQL) ─────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/identity_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+
+  # ── JPA (Verbose logging for dev) ───────────────────────────────────
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+
+  # ── REDIS (Local) ───────────────────────────────────────────────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+
+  # ── KAFKA (Local) ───────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# ── SERVER ────────────────────────────────────────────────────────────
+server:
+  port: 8082
+
+management:
+  server:
+    port: 8083
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+# ── JWT (Development keys) ────────────────────────────────────────────
+banking:
+  identity:
+    jwt:
+      # Development RSA private key (2048-bit)
+      private-key: |
+        -----BEGIN PRIVATE KEY-----
+        MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDh/nCDmXaEqxN4
+        16b9XjV8acmbqA52uPzKbesWQSNZPZu1/TrLNG1XLim/5DaN2R3JVD7pe8giVW1z
+        37lWAsjFUetA4c1mathYAxj37nEZ941RE6eweE3PYJod012SJUN1X2URzDDkZ4u8
+        NEdDAsI=
+        -----END PRIVATE KEY-----
+      public-key: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
+        fGnJm6gOdrj8ym3rFkEjWT2btf06yzRtVy4pv+Q2jdkdyVQ+6XvIIlVtc9+5VgLI
+        xVHrQOHNZmrYGAMY9+5xGfeNUROnsHhNz2CaHdNdkiVDdV9lEcww5GeLvDRHQwLI
+        -----END PUBLIC KEY-----
+      issuer: banking-platform-dev
+      audience: banking-api-dev
+      access-token-ttl-minutes: 60
+      refresh-token-ttl-days: 30
+    
+    password:
+      bcrypt-strength: 10
+      min-length: 6
+    
+    security:
+      max-login-attempts: 10
+      lockout-duration-minutes: 5
+
+# ── LOGGING (Verbose for development) ─────────────────────────────────
+logging:
+  level:
+    com.banking.identity: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# ── TRACING (Full sampling in dev) ────────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

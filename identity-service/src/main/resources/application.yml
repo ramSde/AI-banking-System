@@ -1,0 +1,186 @@
+# ══════════════════════════════════════════════════════════════════════
+# Identity Service — application.yml
+# ALL values use ${ENV_VAR:default} pattern — zero hardcoded config.
+# Production values are injected via OpenShift ConfigMap + Secrets.
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  application:
+    name: identity-service
+
+  # ── PROFILES ────────────────────────────────────────────────────────
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # ── DATABASE (PostgreSQL) ───────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:identity_db}?autoReconnect=true&useSSL=${DB_USE_SSL:false}&characterEncoding=utf8
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: IdentityHikariPool
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+      connection-test-query: SELECT 1
+      leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD:60000}
+
+  # ── JPA / HIBERNATE ─────────────────────────────────────────────────
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        jdbc:
+          batch_size: ${HIBERNATE_BATCH_SIZE:20}
+          fetch_size: ${HIBERNATE_FETCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
+    show-sql: false
+    open-in-view: false
+
+  # ── LIQUIBASE ───────────────────────────────────────────────────────
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/changelog-master.xml
+    default-schema: public
+
+  # ── REDIS ───────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2000ms}
+      timeout: ${REDIS_TIMEOUT:3000ms}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-idle: ${REDIS_POOL_MAX_IDLE:10}
+          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-wait: ${REDIS_POOL_MAX_WAIT:3000ms}
+        shutdown-timeout: ${REDIS_SHUTDOWN_TIMEOUT:2000ms}
+
+  # ── KAFKA ───────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: ${KAFKA_PRODUCER_RETRIES:2147483647}
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        max.request.size: ${KAFKA_MAX_REQUEST_SIZE:10485760}
+        compression.type: snappy
+        linger.ms: ${KAFKA_LINGER_MS:10}
+        batch.size: ${KAFKA_BATCH_SIZE:32768}
+
+# ── SERVER ────────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8082}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: ${SERVER_COMPRESSION_MIN_SIZE:1024}
+    mime-types:
+      - application/json
+      - application/xml
+      - text/html
+      - text/plain
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:10}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+    connection-timeout: ${TOMCAT_CONNECTION_TIMEOUT:20000}
+
+# ── ACTUATOR ──────────────────────────────────────────────────────────
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8083}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: ${HEALTH_SHOW_DETAILS:when-authorized}
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:dev}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+# ── JWT CONFIGURATION ─────────────────────────────────────────────────
+banking:
+  identity:
+    jwt:
+      # RSA private key for signing (PEM format)
+      private-key: ${JWT_PRIVATE_KEY}
+      # RSA public key for validation (PEM format)
+      public-key: ${JWT_PUBLIC_KEY}
+      issuer: ${JWT_ISSUER:banking-platform}
+      audience: ${JWT_AUDIENCE:banking-api}
+      access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL:15}
+      refresh-token-ttl-days: ${JWT_REFRESH_TOKEN_TTL:7}
+    
+    password:
+      bcrypt-strength: ${PASSWORD_BCRYPT_STRENGTH:12}
+      min-length: ${PASSWORD_MIN_LENGTH:8}
+      require-uppercase: ${PASSWORD_REQUIRE_UPPERCASE:true}
+      require-lowercase: ${PASSWORD_REQUIRE_LOWERCASE:true}
+      require-digit: ${PASSWORD_REQUIRE_DIGIT:true}
+      require-special: ${PASSWORD_REQUIRE_SPECIAL:true}
+    
+    security:
+      max-login-attempts: ${MAX_LOGIN_ATTEMPTS:5}
+      lockout-duration-minutes: ${LOCKOUT_DURATION_MINUTES:30}
+
+# ── LOGGING ───────────────────────────────────────────────────────────
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.banking.identity: ${LOG_LEVEL_IDENTITY:INFO}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:INFO}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:WARN}
+    org.hibernate: ${LOG_LEVEL_HIBERNATE:WARN}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAMS:WARN}
+  config: classpath:logback-spring.xml
+
+# ── SPRINGDOC OPENAPI ─────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha

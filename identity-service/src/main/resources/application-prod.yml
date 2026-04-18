@@ -1,0 +1,130 @@
+# ══════════════════════════════════════════════════════════════════════
+# Identity Service — application-prod.yml
+# Production environment configuration
+# ══════════════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: prod
+
+  # ── DATABASE (Production PostgreSQL) ────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true&useSSL=true&sslmode=require&characterEncoding=utf8
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      pool-name: IdentityHikariPool-Prod
+      maximum-pool-size: 50
+      minimum-idle: 15
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      leak-detection-threshold: 60000
+
+  # ── JPA (No logging) ────────────────────────────────────────────────
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        jdbc:
+          batch_size: 30
+          fetch_size: 100
+
+  # ── REDIS (Production with SSL) ─────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+          max-wait: 3000ms
+
+  # ── KAFKA (Production with SASL/SSL) ────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      properties:
+        security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+        sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+        sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+        ssl.endpoint.identification.algorithm: https
+
+# ── SERVER ────────────────────────────────────────────────────────────
+server:
+  port: 8080
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 400
+      min-spare: 30
+    accept-count: 200
+    connection-timeout: 20000
+
+management:
+  server:
+    port: 8081
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+# ── JWT (Production keys from Vault/Secrets) ─────────────────────────
+banking:
+  identity:
+    jwt:
+      private-key: ${JWT_PRIVATE_KEY}
+      public-key: ${JWT_PUBLIC_KEY}
+      issuer: banking-platform
+      audience: banking-api
+      access-token-ttl-minutes: 15
+      refresh-token-ttl-days: 7
+    
+    password:
+      bcrypt-strength: 12
+      min-length: 8
+      require-uppercase: true
+      require-lowercase: true
+      require-digit: true
+      require-special: true
+    
+    security:
+      max-login-attempts: 5
+      lockout-duration-minutes: 30
+
+# ── LOGGING (Structured JSON only) ───────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.banking.identity: INFO
+    org.springframework.security: WARN
+    org.springframework.kafka: ERROR
+    org.hibernate: ERROR
+
+# ── TRACING (Sampled for performance) ─────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: 0.1
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+
+# ── SECURITY HEADERS ──────────────────────────────────────────────────
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
