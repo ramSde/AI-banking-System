@@ -1,213 +1,190 @@
 package com.banking.gateway.filter;
 
+import com.banking.gateway.dto.ApiErrorResponse;
 import com.banking.gateway.exception.InvalidTokenException;
 import com.banking.gateway.util.JwtValidator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebFilter;
-import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 /**
- * JWT Authentication Filter for the API Gateway.
+ * JWT Authentication Filter for Spring Cloud Gateway.
  * 
- * This filter provides:
- * - JWT token extraction from Authorization header
- * - Token validation using RSA public key
- * - Security context population with user details
- * - Role-based authority mapping
- * - Comprehensive error handling for invalid tokens
+ * Validates JWT tokens on all incoming requests except public endpoints.
+ * Extracts user information from valid tokens and adds to request headers
+ * for downstream services.
  * 
- * Filter Behavior:
- * - Processes all requests except public endpoints
- * - Extracts Bearer token from Authorization header
- * - Validates token signature, expiration, and claims
- * - Populates Spring Security context for downstream authorization
- * - Returns 401 Unauthorized for invalid/missing tokens
+ * Security features:
+ * - RSA signature validation
+ * - Token expiration checking
+ * - Issuer and audience validation
+ * - Request context enrichment with user data
+ * - Comprehensive error handling with structured responses
  * 
- * Security Features:
- * - Stateless authentication (no server-side sessions)
- * - RSA-256 signature verification
- * - Role-based access control (RBAC)
- * - Request tracing with user context
+ * Public endpoints (no authentication required):
+ * - /api/v1/auth/** (login, register, password reset)
+ * - /actuator/** (health checks, metrics)
+ * - OPTIONS requests (CORS preflight)
  * 
  * @author Banking Platform Team
  * @version 1.0.0
+ * @since 2024-01-01
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter implements WebFilter {
+public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final JwtValidator jwtValidator;
-
-    private static final String BEARER_PREFIX = "Bearer ";
-    private static final String AUTHORIZATION_HEADER = HttpHeaders.AUTHORIZATION;
+    private final ObjectMapper objectMapper;
 
     /**
-     * Filter incoming requests for JWT authentication.
-     * 
-     * Processing Flow:
-     * 1. Extract JWT token from Authorization header
-     * 2. Skip authentication for public endpoints
-     * 3. Validate token signature and claims
-     * 4. Create Spring Security authentication object
-     * 5. Populate security context for downstream filters
-     * 6. Continue filter chain or return 401 for invalid tokens
-     * 
-     * @param exchange ServerWebExchange containing request/response
-     * @param chain WebFilterChain for continuing request processing
-     * @return Mono<Void> representing async filter completion
+     * Public endpoints that don't require authentication
      */
+    private static final List<String> PUBLIC_PATHS = List.of(
+        "/api/v1/auth/",
+        "/actuator/",
+        "/fallback/"
+    );
+
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String path = exchange.getRequest().getPath().value();
-        
-        // Skip authentication for public endpoints
-        if (isPublicEndpoint(path)) {
-            log.debug("Skipping JWT authentication for public endpoint: {}", path);
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest request = exchange.getRequest();
+        String path = request.getURI().getPath();
+        String method = request.getMethod().name();
+
+        // Skip authentication for public endpoints and OPTIONS requests
+        if (isPublicPath(path) || "OPTIONS".equals(method)) {
+            log.debug("Skipping authentication for public path: {} {}", method, path);
             return chain.filter(exchange);
         }
 
-        // Extract JWT token from request
-        String token = extractToken(exchange);
-        
-        if (token == null) {
-            log.warn("Missing JWT token for protected endpoint: {}", path);
-            return handleUnauthorized(exchange, "Missing authentication token");
+        // Extract JWT token from Authorization header
+        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("Missing or invalid Authorization header for path: {}", path);
+            return handleAuthenticationError(exchange, "Missing or invalid Authorization header", 
+                                           HttpStatus.UNAUTHORIZED);
         }
 
-        // Validate token and create authentication
-        return validateTokenAndAuthenticate(token)
-                .flatMap(authentication -> {
-                    // Set security context and continue
-                    return chain.filter(exchange)
-                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication));
-                })
-                .onErrorResume(InvalidTokenException.class, ex -> {
-                    log.warn("JWT authentication failed for path {}: {}", path, ex.getMessage());
-                    return handleUnauthorized(exchange, ex.getMessage());
-                })
-                .onErrorResume(Exception.class, ex -> {
-                    log.error("Unexpected error during JWT authentication for path {}", path, ex);
-                    return handleUnauthorized(exchange, "Authentication failed");
-                });
-    }
-
-    /**
-     * Extract JWT token from Authorization header.
-     * 
-     * Expected format: "Bearer <jwt-token>"
-     * 
-     * @param exchange ServerWebExchange containing the request
-     * @return JWT token string without "Bearer " prefix, or null if not found
-     */
-    private String extractToken(ServerWebExchange exchange) {
-        String authHeader = exchange.getRequest().getHeaders().getFirst(AUTHORIZATION_HEADER);
+        String token = authHeader.substring(7); // Remove "Bearer " prefix
         
-        if (StringUtils.hasText(authHeader) && authHeader.startsWith(BEARER_PREFIX)) {
-            String token = authHeader.substring(BEARER_PREFIX.length());
-            log.debug("Extracted JWT token from Authorization header");
-            return token;
-        }
-        
-        return null;
-    }
-
-    /**
-     * Validate JWT token and create Spring Security Authentication object.
-     * 
-     * @param token JWT token string
-     * @return Mono<Authentication> with user details and authorities
-     */
-    private Mono<Authentication> validateTokenAndAuthenticate(String token) {
-        return Mono.fromCallable(() -> {
-            // Validate token and extract claims
+        try {
+            // Validate JWT token
             Claims claims = jwtValidator.validateToken(token);
             
-            // Extract user details
-            String userId = jwtValidator.extractUserId(claims);
-            List<String> roles = jwtValidator.extractRoles(claims);
-            List<String> permissions = jwtValidator.extractPermissions(claims);
+            // Extract user information
+            String userId = claims.getSubject();
+            String email = claims.get("email", String.class);
+            String roles = claims.get("roles", String.class);
             
-            // Create authorities from roles and permissions
-            List<SimpleGrantedAuthority> authorities = roles.stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                    .collect(Collectors.toList());
+            // Enrich request with user context for downstream services
+            ServerHttpRequest enrichedRequest = request.mutate()
+                .header("X-User-ID", userId)
+                .header("X-User-Email", email != null ? email : "")
+                .header("X-User-Roles", roles != null ? roles : "")
+                .header("X-Token-Issued-At", String.valueOf(claims.getIssuedAt().getTime()))
+                .header("X-Token-Expires-At", String.valueOf(claims.getExpiration().getTime()))
+                .build();
+
+            // Add user ID to MDC for logging context
+            exchange.getAttributes().put("userId", userId);
             
-            permissions.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .forEach(authorities::add);
+            log.info("Authentication successful for user: {} on path: {}", 
+                    maskUserId(userId), path);
             
-            // Create authentication object
-            UsernamePasswordAuthenticationToken authentication = 
-                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            return chain.filter(exchange.mutate().request(enrichedRequest).build());
             
-            // Add additional claims as details
-            authentication.setDetails(claims);
+        } catch (InvalidTokenException e) {
+            log.warn("JWT authentication failed for path {}: {}", path, e.getMessage());
+            return handleAuthenticationError(exchange, e.getMessage(), HttpStatus.UNAUTHORIZED);
             
-            log.debug("JWT authentication successful for user: {} with roles: {}", userId, roles);
-            return authentication;
-        });
+        } catch (Exception e) {
+            log.error("Unexpected error during JWT authentication for path: " + path, e);
+            return handleAuthenticationError(exchange, "Authentication failed", 
+                                           HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**
-     * Check if the request path is a public endpoint that doesn't require authentication.
-     * 
-     * Public endpoints include:
-     * - Health check endpoints
-     * - Authentication endpoints (login, register, etc.)
-     * - CORS preflight requests
-     * - Circuit breaker fallback endpoints
+     * Checks if the request path is public (no authentication required).
      * 
      * @param path Request path
-     * @return true if endpoint is public
+     * @return true if path is public, false otherwise
      */
-    private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/actuator/health") ||
-               path.startsWith("/actuator/info") ||
-               path.startsWith("/actuator/prometheus") ||
-               path.equals("/api/v1/auth/login") ||
-               path.equals("/api/v1/auth/register") ||
-               path.equals("/api/v1/auth/refresh") ||
-               path.equals("/api/v1/auth/forgot-password") ||
-               path.equals("/api/v1/auth/verify-otp") ||
-               path.startsWith("/fallback/");
+    private boolean isPublicPath(String path) {
+        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 
     /**
-     * Handle unauthorized requests by returning 401 status.
+     * Handles authentication errors with structured JSON response.
      * 
-     * @param exchange ServerWebExchange for the request
-     * @param message Error message for the response
+     * @param exchange Server web exchange
+     * @param message Error message
+     * @param status HTTP status code
      * @return Mono<Void> representing the error response
      */
-    private Mono<Void> handleUnauthorized(ServerWebExchange exchange, String message) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        exchange.getResponse().getHeaders().add("Content-Type", "application/json");
-        
-        String errorResponse = String.format(
-                "{\"success\":false,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"%s\"},\"timestamp\":\"%s\"}",
-                message,
-                java.time.Instant.now().toString()
-        );
-        
-        org.springframework.core.io.buffer.DataBuffer buffer = 
-                exchange.getResponse().bufferFactory().wrap(errorResponse.getBytes());
-        
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+    private Mono<Void> handleAuthenticationError(ServerWebExchange exchange, 
+                                               String message, 
+                                               HttpStatus status) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(status);
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+            .success(false)
+            .error(ApiErrorResponse.ErrorDetails.builder()
+                .code(status == HttpStatus.UNAUTHORIZED ? "AUTHENTICATION_FAILED" : "INTERNAL_ERROR")
+                .message(message)
+                .build())
+            .traceId(UUID.randomUUID().toString())
+            .timestamp(Instant.now())
+            .build();
+
+        try {
+            String errorJson = objectMapper.writeValueAsString(errorResponse);
+            DataBuffer buffer = response.bufferFactory().wrap(errorJson.getBytes());
+            return response.writeWith(Mono.just(buffer));
+            
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize error response", e);
+            return response.setComplete();
+        }
+    }
+
+    /**
+     * Masks user ID for logging (privacy protection).
+     * 
+     * @param userId User ID to mask
+     * @return Masked user ID for safe logging
+     */
+    private String maskUserId(String userId) {
+        if (userId == null || userId.length() <= 8) {
+            return "****";
+        }
+        return userId.substring(0, 4) + "****" + userId.substring(userId.length() - 4);
+    }
+
+    @Override
+    public int getOrder() {
+        return -100; // Execute before rate limiting filter
     }
 }

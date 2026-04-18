@@ -13,99 +13,80 @@ import java.time.Duration;
 /**
  * Custom health indicator for Redis connectivity.
  * 
- * This health indicator provides:
- * - Redis connection status monitoring
+ * Provides detailed health information about Redis connection status:
+ * - Connection availability
  * - Response time measurement
- * - Connection pool status
- * - Integration with Spring Boot Actuator health checks
- * - Kubernetes readiness/liveness probe support
+ * - Error details for troubleshooting
  * 
- * Health Check Strategy:
- * - Performs PING command to verify Redis connectivity
- * - Measures response time for performance monitoring
- * - Fails fast with timeout to prevent blocking health checks
- * - Provides detailed status information for debugging
+ * This health check is used by:
+ * - Kubernetes readiness probes
+ * - Load balancer health checks
+ * - Monitoring systems (Prometheus, Grafana)
+ * - Operations teams for troubleshooting
  * 
- * Integration:
- * - Used by Kubernetes readiness probes
- * - Monitored by Prometheus for alerting
- * - Included in /actuator/health endpoint
- * - Supports graceful degradation when Redis is unavailable
+ * The health check performs a simple PING operation to verify
+ * Redis connectivity without impacting performance.
  * 
  * @author Banking Platform Team
  * @version 1.0.0
+ * @since 2024-01-01
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RedisHealthIndicator implements ReactiveHealthIndicator {
 
-    private final ReactiveRedisTemplate<String, Object> redisTemplate;
+    private final ReactiveRedisTemplate<String, String> redisTemplate;
 
-    private static final Duration HEALTH_CHECK_TIMEOUT = Duration.ofSeconds(3);
-    private static final String PING_COMMAND = "PING";
-    private static final String EXPECTED_RESPONSE = "PONG";
+    private static final Duration HEALTH_CHECK_TIMEOUT = Duration.ofSeconds(2);
+    private static final String HEALTH_CHECK_KEY = "health:check";
 
-    /**
-     * Perform Redis health check.
-     * 
-     * Health Check Process:
-     * 1. Execute PING command against Redis
-     * 2. Measure response time
-     * 3. Verify expected PONG response
-     * 4. Return health status with details
-     * 5. Handle timeouts and connection errors
-     * 
-     * @return Mono<Health> containing health status and details
-     */
     @Override
     public Mono<Health> health() {
         long startTime = System.currentTimeMillis();
-
-        return redisTemplate.getConnectionFactory()
-                .getReactiveConnection()
-                .ping()
-                .map(response -> {
-                    long responseTime = System.currentTimeMillis() - startTime;
-                    
-                    if (EXPECTED_RESPONSE.equals(response)) {
-                        log.debug("Redis health check successful - Response time: {}ms", responseTime);
-                        
-                        return Health.up()
-                                .withDetail("status", "UP")
-                                .withDetail("responseTime", responseTime + "ms")
-                                .withDetail("connection", "active")
-                                .withDetail("lastCheck", java.time.Instant.now().toString())
-                                .build();
-                    } else {
-                        log.warn("Redis health check failed - Unexpected response: {}", response);
-                        
-                        return Health.down()
-                                .withDetail("status", "DOWN")
-                                .withDetail("reason", "Unexpected PING response")
-                                .withDetail("expectedResponse", EXPECTED_RESPONSE)
-                                .withDetail("actualResponse", response)
-                                .withDetail("responseTime", responseTime + "ms")
-                                .withDetail("lastCheck", java.time.Instant.now().toString())
-                                .build();
-                    }
-                })
-                .timeout(HEALTH_CHECK_TIMEOUT)
-                .onErrorResume(throwable -> {
-                    long responseTime = System.currentTimeMillis() - startTime;
-                    
-                    log.error("Redis health check failed - Error: {}, Response time: {}ms", 
-                            throwable.getMessage(), responseTime);
-                    
-                    return Mono.just(Health.down()
-                            .withDetail("status", "DOWN")
-                            .withDetail("reason", "Connection failed")
-                            .withDetail("error", throwable.getMessage())
-                            .withDetail("errorType", throwable.getClass().getSimpleName())
-                            .withDetail("responseTime", responseTime + "ms")
-                            .withDetail("timeout", HEALTH_CHECK_TIMEOUT.toMillis() + "ms")
-                            .withDetail("lastCheck", java.time.Instant.now().toString())
-                            .build());
-                });
+        
+        return redisTemplate.opsForValue()
+            .set(HEALTH_CHECK_KEY, "ping")
+            .then(redisTemplate.opsForValue().get(HEALTH_CHECK_KEY))
+            .timeout(HEALTH_CHECK_TIMEOUT)
+            .map(value -> {
+                long responseTime = System.currentTimeMillis() - startTime;
+                
+                if ("ping".equals(value)) {
+                    log.debug("Redis health check successful - Response time: {}ms", responseTime);
+                    return Health.up()
+                        .withDetail("status", "UP")
+                        .withDetail("responseTime", responseTime + "ms")
+                        .withDetail("connection", "active")
+                        .build();
+                } else {
+                    log.warn("Redis health check failed - Unexpected response: {}", value);
+                    return Health.down()
+                        .withDetail("status", "DOWN")
+                        .withDetail("error", "Unexpected response: " + value)
+                        .withDetail("responseTime", responseTime + "ms")
+                        .build();
+                }
+            })
+            .onErrorResume(throwable -> {
+                long responseTime = System.currentTimeMillis() - startTime;
+                log.error("Redis health check failed - Response time: {}ms", responseTime, throwable);
+                
+                return Mono.just(Health.down()
+                    .withDetail("status", "DOWN")
+                    .withDetail("error", throwable.getMessage())
+                    .withDetail("responseTime", responseTime + "ms")
+                    .withDetail("connection", "failed")
+                    .build());
+            })
+            .doFinally(signalType -> {
+                // Clean up health check key (fire and forget)
+                redisTemplate.delete(HEALTH_CHECK_KEY)
+                    .onErrorResume(error -> {
+                        log.debug("Failed to clean up health check key: {}", error.getMessage());
+                        return Mono.empty();
+                    })
+                    .subscribe();
+            });
     }
 }

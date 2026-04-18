@@ -1,27 +1,26 @@
 # ══════════════════════════════════════════════════════════════════════
-# Banking Platform — Docker Compose for Local Development
-# This file is for LOCAL DEVELOPMENT ONLY — NOT for production
-# Production deployment uses OpenShift/Kubernetes
+# Banking Platform — Local Development Docker Compose
+# Complete infrastructure for local development and testing
 # ══════════════════════════════════════════════════════════════════════
 
 version: "3.9"
 
 services:
 
-  # ── DATABASES ─────────────────────────────────────────────────────
+  # ── DATABASES ────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: banking-postgres
     environment:
       POSTGRES_DB: banking
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
-      POSTGRES_MULTIPLE_DATABASES: identity,users,accounts,transactions,fraud,audit,notifications,chat,ai,documents,analytics,statements
+      POSTGRES_PASSWORD: admin
+      POSTGRES_MULTIPLE_DATABASES: identity,user,account,transaction,fraud,audit
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d banking"]
       interval: 10s
@@ -30,24 +29,24 @@ services:
     networks:
       - banking-network
 
-  # ── REDIS ────────────────────────────────────────────────────────
+  # ── REDIS ───────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: banking-redis
-    command: redis-server --appendonly yes --requirepass redis123
+    command: redis-server --appendonly yes --requirepass ""
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
     networks:
       - banking-network
 
-  # ── KAFKA ECOSYSTEM ──────────────────────────────────────────────
+  # ── KAFKA ECOSYSTEM ─────────────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: banking-zookeeper
@@ -67,24 +66,23 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
-      - "9101:9101"
+      - "9094:9094"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://localhost:9094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
       retries: 5
     networks:
       - banking-network
@@ -98,12 +96,12 @@ services:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     networks:
       - banking-network
 
-  # ── OBJECT STORAGE ───────────────────────────────────────────────
+  # ── OBJECT STORAGE ──────────────────────────────────────────────────
   minio:
     image: minio/minio:latest
     container_name: banking-minio
@@ -124,7 +122,7 @@ services:
     networks:
       - banking-network
 
-  # ── OBSERVABILITY ────────────────────────────────────────────────
+  # ── OBSERVABILITY ───────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
     container_name: banking-prometheus
@@ -138,7 +136,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     networks:
       - banking-network
@@ -148,7 +146,7 @@ services:
     container_name: banking-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: false
     ports:
       - "3000:3000"
@@ -170,7 +168,7 @@ services:
     networks:
       - banking-network
 
-  # ── AI INFRASTRUCTURE ────────────────────────────────────────────
+  # ── AI INFRASTRUCTURE ───────────────────────────────────────────────
   chromadb:
     image: chromadb/chroma:latest
     container_name: banking-chromadb
@@ -184,43 +182,45 @@ services:
     networks:
       - banking-network
 
-  # ── API GATEWAY ──────────────────────────────────────────────────
+  # ── API GATEWAY ─────────────────────────────────────────────────────
   api-gateway:
     build:
-      context: ../../api-gateway
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: api-gateway/Dockerfile
     container_name: banking-api-gateway
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
-      - "8081:8081"  # Management port
+      - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       REDIS_HOST: redis
-      REDIS_PASSWORD: redis123
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
       JWT_PUBLIC_KEY: |
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
-        fGnJm6gOdrj8ym3rFkEjWT2btf06kkstX2LvAjYdgGnI8Ej2BpmfciHlMa8sc4VQ
-        kOKvjgdHBmGHqmM5dcgKxYWtLVHZ6z/LKnZyuGBrBBYklJGdO6z1xWxJw4ej2UcN
-        lXxyFn6vNjvQoaq30cINhw4f2VdF9yxqHcauHOobwuIM3fRZ6s/iiPPFRTAcrbBY
-        uqBInrT3A/sczRxaJuDrLNuqoF4uGxiX+zM9XYn2br/iDo05jK6oOTu5WSOCxQKo
-        gnNjKAEHNziV+y8CLWEUBtxCRczfN7WIwVBd7YYP2oNnMkXzBMO0QP2VF2lWT2kF
-        QIDAQAB
+        fGnJm6gOdrj8ym3rFkEjWT2btf06yzRtVy4pv+Q2jdkdyVQ+6XvIIlVtc9+5VgLI
+        xVHrQOHNZmrYGAMY9+5xGfeNUROnsHhNz2CaHdNdkiVDdV9lEcww5GeLvDRHQwLI
         -----END PUBLIC KEY-----
+      JWT_ISSUER: banking-platform-dev
+      JWT_AUDIENCE: banking-api-dev
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+    volumes:
+      - ./logs:/app/logs
     networks:
       - banking-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
-# ── VOLUMES ───────────────────────────────────────────────────────────
+# ── VOLUMES ──────────────────────────────────────────────────────────
 volumes:
   postgres_data:
   redis_data:
@@ -232,7 +232,10 @@ volumes:
   grafana_data:
   chromadb_data:
 
-# ── NETWORKS ──────────────────────────────────────────────────────────
+# ── NETWORKS ─────────────────────────────────────────────────────────
 networks:
   banking-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

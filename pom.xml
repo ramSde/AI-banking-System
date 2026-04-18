@@ -40,9 +40,9 @@
     <!-- Modules -->
     <modules>
         <module>api-gateway</module>
+        <module>identity-service</module>
         <module>shared</module>
         <!-- Future modules will be added here -->
-        <!-- <module>identity-service</module> -->
         <!-- <module>user-service</module> -->
         <!-- <module>account-service</module> -->
         <!-- <module>transaction-service</module> -->

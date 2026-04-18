@@ -1,269 +1,328 @@
 package com.banking.gateway.filter;
 
 import com.banking.gateway.config.GatewayProperties;
+import com.banking.gateway.dto.ApiErrorResponse;
 import com.banking.gateway.exception.RateLimitExceededException;
+import com.banking.gateway.util.JwtValidator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
- * Rate limiting filter using Redis sliding window algorithm.
+ * Redis-based rate limiting filter using sliding window algorithm.
  * 
- * This filter provides:
- * - Per-user rate limiting for authenticated requests
- * - Per-IP rate limiting for all requests (including unauthenticated)
- * - Sliding window algorithm for smooth rate limiting
- * - Redis-based distributed rate limiting across gateway instances
- * - Comprehensive metrics and logging
+ * Implements dual-layer rate limiting:
+ * 1. Per-user rate limiting (authenticated requests)
+ * 2. Per-IP rate limiting (all requests including unauthenticated)
  * 
- * Rate Limiting Strategy:
- * - IP-based: Applied first to prevent brute force attacks
- * - User-based: Applied after authentication for personalized limits
- * - Sliding window: More accurate than fixed window, prevents burst traffic
- * - Distributed: Redis ensures consistent limits across multiple gateway instances
+ * Algorithm: Sliding Window Counter
+ * - Uses Redis sorted sets with timestamps as scores
+ * - Removes expired entries before counting
+ * - Atomic operations ensure consistency under high concurrency
  * 
- * Algorithm:
- * 1. Remove expired entries from sliding window
- * 2. Count current requests in window
- * 3. Allow request if under limit, reject if over limit
- * 4. Add current request timestamp to window
- * 5. Set TTL for automatic cleanup
+ * Rate limit headers are added to responses for client awareness:
+ * - X-RateLimit-Limit: Maximum requests allowed
+ * - X-RateLimit-Remaining: Requests remaining in current window
+ * - X-RateLimit-Reset: Timestamp when window resets
  * 
  * @author Banking Platform Team
  * @version 1.0.0
+ * @since 2024-01-01
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
-    private final ReactiveRedisTemplate<String, Object> redisTemplate;
+    private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final GatewayProperties gatewayProperties;
+    private final JwtValidator jwtValidator;
+    private final ObjectMapper objectMapper;
 
-    private static final String IP_RATE_LIMIT_KEY_PREFIX = "rate_limit:ip:";
     private static final String USER_RATE_LIMIT_KEY_PREFIX = "rate_limit:user:";
+    private static final String IP_RATE_LIMIT_KEY_PREFIX = "rate_limit:ip:";
 
-    /**
-     * Apply rate limiting to incoming requests.
-     * 
-     * Processing Order:
-     * 1. Extract client IP address
-     * 2. Apply IP-based rate limiting (prevents brute force)
-     * 3. Extract user ID from security context (if authenticated)
-     * 4. Apply user-based rate limiting (personalized limits)
-     * 5. Continue request processing or return 429 Too Many Requests
-     * 
-     * @param exchange ServerWebExchange containing request/response
-     * @param chain GatewayFilterChain for continuing request processing
-     * @return Mono<Void> representing async filter completion
-     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String path = exchange.getRequest().getPath().value();
+        ServerHttpRequest request = exchange.getRequest();
+        String clientIp = getClientIpAddress(request);
         
-        // Skip rate limiting for health checks and metrics
-        if (isExemptEndpoint(path)) {
-            return chain.filter(exchange);
-        }
-
-        String clientIp = getClientIp(exchange);
+        // Extract user ID from JWT token (if present)
+        String userId = extractUserIdFromRequest(request);
         
-        // Apply IP-based rate limiting first
-        return checkIpRateLimit(clientIp)
-                .flatMap(ipAllowed -> {
-                    if (!ipAllowed) {
-                        log.warn("IP rate limit exceeded for: {}", clientIp);
-                        return handleRateLimitExceeded(exchange, "IP rate limit exceeded");
-                    }
-                    
-                    // Apply user-based rate limiting for authenticated requests
-                    return ReactiveSecurityContextHolder.getContext()
-                            .cast(org.springframework.security.core.context.SecurityContext.class)
-                            .map(ctx -> ctx.getAuthentication())
-                            .cast(Authentication.class)
-                            .flatMap(auth -> {
-                                if (auth != null && auth.isAuthenticated()) {
-                                    String userId = auth.getName();
-                                    return checkUserRateLimit(userId)
-                                            .flatMap(userAllowed -> {
-                                                if (!userAllowed) {
-                                                    log.warn("User rate limit exceeded for: {}", userId);
-                                                    return handleRateLimitExceeded(exchange, "User rate limit exceeded");
-                                                }
-                                                return chain.filter(exchange);
-                                            });
-                                } else {
-                                    // Unauthenticated request - only IP rate limiting applied
-                                    return chain.filter(exchange);
-                                }
-                            })
-                            .switchIfEmpty(chain.filter(exchange)); // No authentication context
-                })
-                .onErrorResume(Exception.class, ex -> {
-                    log.error("Error during rate limiting for path: {}", path, ex);
-                    // Continue processing on rate limiting errors (fail open)
+        // Apply rate limiting
+        return applyRateLimit(exchange, userId, clientIp)
+            .flatMap(rateLimitResult -> {
+                // Add rate limit headers to response
+                addRateLimitHeaders(exchange.getResponse(), rateLimitResult);
+                
+                if (rateLimitResult.isAllowed()) {
+                    log.debug("Rate limit check passed for user: {}, IP: {}", 
+                             maskUserId(userId), maskIpAddress(clientIp));
                     return chain.filter(exchange);
-                });
+                } else {
+                    log.warn("Rate limit exceeded for user: {}, IP: {}", 
+                            maskUserId(userId), maskIpAddress(clientIp));
+                    return handleRateLimitExceeded(exchange, rateLimitResult);
+                }
+            });
     }
 
     /**
-     * Check IP-based rate limit using sliding window algorithm.
+     * Applies rate limiting checks for both user and IP.
      * 
+     * @param exchange Server web exchange
+     * @param userId User ID (null for unauthenticated requests)
      * @param clientIp Client IP address
-     * @return Mono<Boolean> true if request is allowed, false if rate limit exceeded
+     * @return Mono<RateLimitResult> with rate limit decision
      */
-    private Mono<Boolean> checkIpRateLimit(String clientIp) {
-        String key = IP_RATE_LIMIT_KEY_PREFIX + clientIp;
-        int limit = gatewayProperties.getRateLimit().getRequestsPerMinutePerIp();
-        int windowSeconds = gatewayProperties.getRateLimit().getWindowSizeSeconds();
+    private Mono<RateLimitResult> applyRateLimit(ServerWebExchange exchange, 
+                                               String userId, 
+                                               String clientIp) {
+        Instant now = Instant.now();
+        Duration windowDuration = Duration.ofSeconds(gatewayProperties.getRateLimit().getWindowSizeSeconds());
+        Instant windowStart = now.minus(windowDuration);
         
-        return checkRateLimit(key, limit, windowSeconds);
+        // Check user rate limit (if authenticated)
+        Mono<RateLimitResult> userRateLimit = userId != null 
+            ? checkRateLimit(USER_RATE_LIMIT_KEY_PREFIX + userId, 
+                           gatewayProperties.getRateLimit().getRequestsPerMinutePerUser(),
+                           windowStart, now, "USER")
+            : Mono.just(RateLimitResult.allowed(0, 0, now));
+        
+        // Check IP rate limit (always applied)
+        Mono<RateLimitResult> ipRateLimit = checkRateLimit(
+            IP_RATE_LIMIT_KEY_PREFIX + clientIp,
+            gatewayProperties.getRateLimit().getRequestsPerMinutePerIp(),
+            windowStart, now, "IP");
+        
+        // Combine results - both must pass
+        return Mono.zip(userRateLimit, ipRateLimit)
+            .map(tuple -> {
+                RateLimitResult userResult = tuple.getT1();
+                RateLimitResult ipResult = tuple.getT2();
+                
+                // If either limit is exceeded, return the more restrictive one
+                if (!userResult.isAllowed()) {
+                    return userResult;
+                } else if (!ipResult.isAllowed()) {
+                    return ipResult;
+                } else {
+                    // Both passed - return the more restrictive remaining count
+                    int minRemaining = Math.min(userResult.getRemaining(), ipResult.getRemaining());
+                    int maxLimit = Math.max(userResult.getLimit(), ipResult.getLimit());
+                    return RateLimitResult.allowed(maxLimit, minRemaining, now);
+                }
+            });
     }
 
     /**
-     * Check user-based rate limit using sliding window algorithm.
-     * 
-     * @param userId User ID from JWT token
-     * @return Mono<Boolean> true if request is allowed, false if rate limit exceeded
-     */
-    private Mono<Boolean> checkUserRateLimit(String userId) {
-        String key = USER_RATE_LIMIT_KEY_PREFIX + userId;
-        int limit = gatewayProperties.getRateLimit().getRequestsPerMinutePerUser();
-        int windowSeconds = gatewayProperties.getRateLimit().getWindowSizeSeconds();
-        
-        return checkRateLimit(key, limit, windowSeconds);
-    }
-
-    /**
-     * Generic rate limit check using Redis sliding window algorithm.
-     * 
-     * Algorithm:
-     * 1. Get current timestamp
-     * 2. Remove expired entries (older than window size)
-     * 3. Count remaining entries in window
-     * 4. If count < limit, add current timestamp and allow request
-     * 5. If count >= limit, reject request
-     * 6. Set TTL for automatic cleanup
+     * Checks rate limit using Redis sliding window algorithm.
      * 
      * @param key Redis key for rate limit counter
      * @param limit Maximum requests allowed in window
-     * @param windowSeconds Window size in seconds
-     * @return Mono<Boolean> true if request is allowed
+     * @param windowStart Start of current window
+     * @param now Current timestamp
+     * @param type Rate limit type (USER or IP) for logging
+     * @return Mono<RateLimitResult> with rate limit decision
      */
-    private Mono<Boolean> checkRateLimit(String key, int limit, int windowSeconds) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - (windowSeconds * 1000L);
-
+    private Mono<RateLimitResult> checkRateLimit(String key, 
+                                                int limit, 
+                                                Instant windowStart, 
+                                                Instant now, 
+                                                String type) {
         return redisTemplate.opsForZSet()
-                // Remove expired entries
-                .removeRangeByScore(key, 0, windowStart)
-                .then(redisTemplate.opsForZSet().count(key, windowStart, now))
-                .flatMap(currentCount -> {
-                    if (currentCount < limit) {
-                        // Add current request timestamp and set TTL
-                        return redisTemplate.opsForZSet()
-                                .add(key, String.valueOf(now), now)
-                                .then(redisTemplate.expire(key, Duration.ofSeconds(windowSeconds + 10)))
-                                .thenReturn(true);
-                    } else {
-                        // Rate limit exceeded
-                        return Mono.just(false);
-                    }
-                })
-                .onErrorReturn(true); // Fail open on Redis errors
+            // Remove expired entries from sliding window
+            .removeRangeByScore(key, 0, windowStart.toEpochMilli())
+            .then(redisTemplate.opsForZSet().count(key, windowStart.toEpochMilli(), now.toEpochMilli()))
+            .cast(Long.class)
+            .flatMap(currentCount -> {
+                if (currentCount >= limit) {
+                    log.debug("{} rate limit exceeded for key: {} (count: {}, limit: {})", 
+                             type, key, currentCount, limit);
+                    return Mono.just(RateLimitResult.exceeded(limit, 0, now));
+                } else {
+                    // Add current request to sliding window
+                    return redisTemplate.opsForZSet()
+                        .add(key, UUID.randomUUID().toString(), now.toEpochMilli())
+                        .then(redisTemplate.expire(key, Duration.ofSeconds(
+                            gatewayProperties.getRateLimit().getWindowSizeSeconds() + 10))) // Extra TTL buffer
+                        .then(Mono.just(RateLimitResult.allowed(limit, 
+                                                              (int) (limit - currentCount - 1), 
+                                                              now)));
+                }
+            })
+            .onErrorResume(error -> {
+                log.error("Redis error during rate limit check for key: " + key, error);
+                // Fail open - allow request if Redis is unavailable
+                return Mono.just(RateLimitResult.allowed(limit, limit - 1, now));
+            });
     }
 
     /**
-     * Extract client IP address from request headers and connection info.
+     * Extracts user ID from JWT token in Authorization header.
+     * 
+     * @param request HTTP request
+     * @return User ID or null if not authenticated
+     */
+    private String extractUserIdFromRequest(ServerHttpRequest request) {
+        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            return jwtValidator.extractUserIdUnsafe(token);
+        }
+        return null;
+    }
+
+    /**
+     * Extracts client IP address from request headers and remote address.
      * 
      * Checks headers in order of preference:
      * 1. X-Forwarded-For (load balancer/proxy)
      * 2. X-Real-IP (nginx proxy)
-     * 3. Remote address from connection
+     * 3. Remote address (direct connection)
      * 
-     * @param exchange ServerWebExchange containing request
+     * @param request HTTP request
      * @return Client IP address
      */
-    private String getClientIp(ServerWebExchange exchange) {
-        // Check X-Forwarded-For header (load balancer)
-        String xForwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+    private String getClientIpAddress(ServerHttpRequest request) {
+        String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            // Take first IP in case of multiple proxies
+            // Take first IP in comma-separated list
             return xForwardedFor.split(",")[0].trim();
         }
-
-        // Check X-Real-IP header (nginx)
-        String xRealIp = exchange.getRequest().getHeaders().getFirst("X-Real-IP");
+        
+        String xRealIp = request.getHeaders().getFirst("X-Real-IP");
         if (xRealIp != null && !xRealIp.isEmpty()) {
             return xRealIp;
         }
-
-        // Fall back to remote address
-        return exchange.getRequest().getRemoteAddress() != null 
-                ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
-                : "unknown";
+        
+        // Fallback to remote address
+        return request.getRemoteAddress() != null 
+            ? request.getRemoteAddress().getAddress().getHostAddress()
+            : "unknown";
     }
 
     /**
-     * Check if endpoint is exempt from rate limiting.
+     * Adds rate limit headers to HTTP response.
      * 
-     * Exempt endpoints:
-     * - Health checks (monitoring systems)
-     * - Metrics endpoints (Prometheus scraping)
-     * - Static resources
-     * 
-     * @param path Request path
-     * @return true if endpoint is exempt from rate limiting
+     * @param response HTTP response
+     * @param result Rate limit result
      */
-    private boolean isExemptEndpoint(String path) {
-        return path.startsWith("/actuator/health") ||
-               path.startsWith("/actuator/prometheus") ||
-               path.startsWith("/actuator/info");
+    private void addRateLimitHeaders(ServerHttpResponse response, RateLimitResult result) {
+        response.getHeaders().add("X-RateLimit-Limit", String.valueOf(result.getLimit()));
+        response.getHeaders().add("X-RateLimit-Remaining", String.valueOf(result.getRemaining()));
+        response.getHeaders().add("X-RateLimit-Reset", String.valueOf(
+            result.getResetTime().plusSeconds(gatewayProperties.getRateLimit().getWindowSizeSeconds()).toEpochMilli()));
     }
 
     /**
-     * Handle rate limit exceeded by returning 429 Too Many Requests.
+     * Handles rate limit exceeded scenario with structured error response.
      * 
-     * @param exchange ServerWebExchange for the request
-     * @param message Error message
+     * @param exchange Server web exchange
+     * @param result Rate limit result
      * @return Mono<Void> representing the error response
      */
-    private Mono<Void> handleRateLimitExceeded(ServerWebExchange exchange, String message) {
-        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        exchange.getResponse().getHeaders().add("Content-Type", "application/json");
-        exchange.getResponse().getHeaders().add("Retry-After", "60"); // Suggest retry after 60 seconds
+    private Mono<Void> handleRateLimitExceeded(ServerWebExchange exchange, RateLimitResult result) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
 
-        String errorResponse = String.format(
-                "{\"success\":false,\"error\":{\"code\":\"RATE_LIMIT_EXCEEDED\",\"message\":\"%s\"},\"timestamp\":\"%s\"}",
-                message,
-                Instant.now().toString()
-        );
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+            .success(false)
+            .error(ApiErrorResponse.ErrorDetails.builder()
+                .code("RATE_LIMIT_EXCEEDED")
+                .message("Too many requests. Please try again later.")
+                .build())
+            .traceId(UUID.randomUUID().toString())
+            .timestamp(Instant.now())
+            .build();
 
-        org.springframework.core.io.buffer.DataBuffer buffer = 
-                exchange.getResponse().bufferFactory().wrap(errorResponse.getBytes());
-
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+        try {
+            String errorJson = objectMapper.writeValueAsString(errorResponse);
+            DataBuffer buffer = response.bufferFactory().wrap(errorJson.getBytes());
+            return response.writeWith(Mono.just(buffer));
+            
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize rate limit error response", e);
+            return response.setComplete();
+        }
     }
 
     /**
-     * Set filter order to run after authentication but before routing.
-     * 
-     * @return Filter order (lower values run first)
+     * Masks user ID for logging (privacy protection).
      */
+    private String maskUserId(String userId) {
+        if (userId == null || userId.length() <= 8) {
+            return "****";
+        }
+        return userId.substring(0, 4) + "****" + userId.substring(userId.length() - 4);
+    }
+
+    /**
+     * Masks IP address for logging (privacy protection).
+     */
+    private String maskIpAddress(String ip) {
+        if (ip == null || ip.equals("unknown")) {
+            return "unknown";
+        }
+        String[] parts = ip.split("\\.");
+        if (parts.length == 4) {
+            return parts[0] + "." + parts[1] + ".***." + parts[3];
+        }
+        return "***";
+    }
+
     @Override
     public int getOrder() {
-        return -100; // Run after authentication filters but before routing
+        return -50; // Execute after authentication filter
+    }
+
+    /**
+     * Rate limit result data class.
+     */
+    private static class RateLimitResult {
+        private final boolean allowed;
+        private final int limit;
+        private final int remaining;
+        private final Instant resetTime;
+
+        private RateLimitResult(boolean allowed, int limit, int remaining, Instant resetTime) {
+            this.allowed = allowed;
+            this.limit = limit;
+            this.remaining = remaining;
+            this.resetTime = resetTime;
+        }
+
+        public static RateLimitResult allowed(int limit, int remaining, Instant resetTime) {
+            return new RateLimitResult(true, limit, remaining, resetTime);
+        }
+
+        public static RateLimitResult exceeded(int limit, int remaining, Instant resetTime) {
+            return new RateLimitResult(false, limit, remaining, resetTime);
+        }
+
+        public boolean isAllowed() { return allowed; }
+        public int getLimit() { return limit; }
+        public int getRemaining() { return remaining; }
+        public Instant getResetTime() { return resetTime; }
     }
 }

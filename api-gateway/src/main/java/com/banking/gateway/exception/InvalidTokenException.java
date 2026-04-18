@@ -4,37 +4,35 @@ package com.banking.gateway.exception;
  * Exception thrown when JWT token validation fails.
  * 
  * This exception is thrown in the following scenarios:
- * - Token is malformed or cannot be parsed
- * - Token signature verification fails
+ * - Token signature validation fails
  * - Token has expired
- * - Token issuer or audience claims are invalid
+ * - Token is malformed or has invalid structure
+ * - Token issuer or audience validation fails
  * - Token is missing required claims
- * - RSA public key cannot be loaded for verification
  * 
- * Security Considerations:
- * - Exception messages should not reveal sensitive token details
- * - Stack traces should not be exposed to API consumers
- * - All token validation failures should be logged for security monitoring
+ * The exception message should be safe to expose to clients
+ * as it doesn't contain sensitive information.
  * 
  * @author Banking Platform Team
  * @version 1.0.0
+ * @since 2024-01-01
  */
 public class InvalidTokenException extends RuntimeException {
 
     /**
-     * Create exception with error message.
+     * Constructs a new InvalidTokenException with the specified detail message.
      * 
-     * @param message Error message describing the validation failure
+     * @param message the detail message explaining why token validation failed
      */
     public InvalidTokenException(String message) {
         super(message);
     }
 
     /**
-     * Create exception with error message and root cause.
+     * Constructs a new InvalidTokenException with the specified detail message and cause.
      * 
-     * @param message Error message describing the validation failure
-     * @param cause Root cause exception (e.g., JWT parsing exception)
+     * @param message the detail message explaining why token validation failed
+     * @param cause the underlying cause of the token validation failure
      */
     public InvalidTokenException(String message, Throwable cause) {
         super(message, cause);

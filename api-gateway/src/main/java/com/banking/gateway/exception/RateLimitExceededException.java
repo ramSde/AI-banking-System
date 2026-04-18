@@ -4,114 +4,78 @@ package com.banking.gateway.exception;
  * Exception thrown when rate limit is exceeded.
  * 
  * This exception is thrown when:
- * - IP-based rate limit is exceeded (too many requests from same IP)
- * - User-based rate limit is exceeded (authenticated user exceeds quota)
- * - Custom rate limits are violated (e.g., API endpoint specific limits)
+ * - User exceeds per-user rate limit
+ * - IP address exceeds per-IP rate limit
+ * - Any other rate limiting threshold is breached
  * 
- * Rate Limiting Context:
- * - Used in conjunction with Redis sliding window algorithm
- * - Supports both per-IP and per-user rate limiting
- * - Provides context for retry-after headers
- * - Enables proper HTTP 429 Too Many Requests responses
+ * The exception includes information about the rate limit
+ * that was exceeded and when the client can retry.
  * 
  * @author Banking Platform Team
  * @version 1.0.0
+ * @since 2024-01-01
  */
 public class RateLimitExceededException extends RuntimeException {
 
-    private final String limitType;
-    private final String identifier;
     private final int limit;
-    private final int windowSeconds;
+    private final long resetTimeMillis;
+    private final String rateLimitType;
 
     /**
-     * Create exception with basic error message.
+     * Constructs a new RateLimitExceededException with rate limit details.
      * 
-     * @param message Error message describing the rate limit violation
+     * @param message the detail message explaining the rate limit violation
+     * @param limit the rate limit that was exceeded
+     * @param resetTimeMillis timestamp when the rate limit window resets
+     * @param rateLimitType type of rate limit (USER, IP, etc.)
      */
-    public RateLimitExceededException(String message) {
+    public RateLimitExceededException(String message, int limit, long resetTimeMillis, String rateLimitType) {
         super(message);
-        this.limitType = "unknown";
-        this.identifier = "unknown";
-        this.limit = 0;
-        this.windowSeconds = 0;
-    }
-
-    /**
-     * Create exception with detailed rate limit context.
-     * 
-     * @param message Error message describing the rate limit violation
-     * @param limitType Type of rate limit (e.g., "IP", "USER", "ENDPOINT")
-     * @param identifier The identifier that exceeded the limit (IP address, user ID, etc.)
-     * @param limit The maximum number of requests allowed
-     * @param windowSeconds The time window in seconds for the rate limit
-     */
-    public RateLimitExceededException(String message, String limitType, String identifier, 
-                                    int limit, int windowSeconds) {
-        super(message);
-        this.limitType = limitType;
-        this.identifier = identifier;
         this.limit = limit;
-        this.windowSeconds = windowSeconds;
+        this.resetTimeMillis = resetTimeMillis;
+        this.rateLimitType = rateLimitType;
     }
 
     /**
-     * Create exception with error message and root cause.
+     * Constructs a new RateLimitExceededException with rate limit details and cause.
      * 
-     * @param message Error message describing the rate limit violation
-     * @param cause Root cause exception
+     * @param message the detail message explaining the rate limit violation
+     * @param cause the underlying cause of the rate limit exception
+     * @param limit the rate limit that was exceeded
+     * @param resetTimeMillis timestamp when the rate limit window resets
+     * @param rateLimitType type of rate limit (USER, IP, etc.)
      */
-    public RateLimitExceededException(String message, Throwable cause) {
+    public RateLimitExceededException(String message, Throwable cause, int limit, long resetTimeMillis, String rateLimitType) {
         super(message, cause);
-        this.limitType = "unknown";
-        this.identifier = "unknown";
-        this.limit = 0;
-        this.windowSeconds = 0;
+        this.limit = limit;
+        this.resetTimeMillis = resetTimeMillis;
+        this.rateLimitType = rateLimitType;
     }
 
     /**
-     * Get the type of rate limit that was exceeded.
+     * Gets the rate limit that was exceeded.
      * 
-     * @return Rate limit type (e.g., "IP", "USER", "ENDPOINT")
-     */
-    public String getLimitType() {
-        return limitType;
-    }
-
-    /**
-     * Get the identifier that exceeded the rate limit.
-     * 
-     * @return Identifier (IP address, user ID, etc.)
-     */
-    public String getIdentifier() {
-        return identifier;
-    }
-
-    /**
-     * Get the maximum number of requests allowed.
-     * 
-     * @return Request limit
+     * @return the rate limit value
      */
     public int getLimit() {
         return limit;
     }
 
     /**
-     * Get the time window in seconds for the rate limit.
+     * Gets the timestamp when the rate limit window resets.
      * 
-     * @return Window size in seconds
+     * @return reset timestamp in milliseconds since epoch
      */
-    public int getWindowSeconds() {
-        return windowSeconds;
+    public long getResetTimeMillis() {
+        return resetTimeMillis;
     }
 
     /**
-     * Calculate suggested retry-after time in seconds.
+     * Gets the type of rate limit that was exceeded.
      * 
-     * @return Suggested retry-after time
+     * @return rate limit type (USER, IP, etc.)
      */
-    public int getRetryAfterSeconds() {
-        // Suggest retrying after the window expires
-        return Math.max(windowSeconds, 60); // Minimum 60 seconds
+    public String getRateLimitType() {
+        return rateLimitType;
     }
 }

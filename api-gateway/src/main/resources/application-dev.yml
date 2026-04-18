@@ -1,69 +1,62 @@
 # ══════════════════════════════════════════════════════════════════════
 # API Gateway — application-dev.yml
-# Development environment configuration
-# Used for local development with Docker Compose
+# Development profile configuration
 # ══════════════════════════════════════════════════════════════════════
 
 spring:
   profiles:
     active: dev
 
-# ── DEVELOPMENT SERVER SETTINGS ──────────────────────────────────────
+# ── DEVELOPMENT OVERRIDES ────────────────────────────────────────────
 server:
   port: 8080
 
 management:
-  server:
-    port: 8081
   endpoint:
     health:
-      show-details: always  # Show full health details in dev
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "*"  # Expose all actuator endpoints in dev
 
-# ── DEVELOPMENT REDIS SETTINGS ───────────────────────────────────────
+# ── REDIS (Local Docker) ──────────────────────────────────────────────
 spring:
   data:
     redis:
       host: localhost
       port: 6379
       password: ""
-      database: 0
 
-# ── DEVELOPMENT BANKING PROPERTIES ───────────────────────────────────
+# ── BANKING GATEWAY DEV SETTINGS ──────────────────────────────────────
 banking:
   gateway:
     jwt:
-      # Development RSA public key (DO NOT USE IN PRODUCTION)
-      # This is a sample key for local development only
+      # Development RSA public key (matches identity-service dev private key)
       public-key: |
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
-        fGnJm6gOdrj8ym3rFkEjWT2btf06kkstX2LvAjYdgGnI8Ej2BpmfciHlMa8sc4VQ
-        kOKvjgdHBmGHqmM5dcgKxYWtLVHZ6z/LKnZyuGBrBBYklJGdO6z1xWxJw4ej2UcN
-        lXxyFn6vNjvQoaq30cINhw4f2VdF9yxqHcauHOobwuIM3fRZ6s/iiPPFRTAcrbBY
-        uqBInrT3A/sczRxaJuDrLNuqoF4uGxiX+zM9XYn2br/iDo05jK6oOTu5WSOCxQKo
-        gnNjKAEHNziV+y8CLWEUBtxCRczfN7WIwVBd7YYP2oNnMkXzBMO0QP2VF2lWT2kF
-        QIDAQAB
+        fGnJm6gOdrj8ym3rFkEjWT2btf06yzRtVy4pv+Q2jdkdyVQ+6XvIIlVtc9+5VgLI
+        xVHrQOHNZmrYGAMY9+5xGfeNUROnsHhNz2CaHdNdkiVDdV9lEcww5GeLvDRHQwLI
         -----END PUBLIC KEY-----
-      issuer: banking-platform
+      issuer: banking-platform-dev
       audience:
-        - banking-api
+        - banking-api-dev
 
     rate-limit:
-      requests-per-minute-per-user: 1000  # Higher limits for development
+      requests-per-minute-per-user: 1000  # Relaxed for development
       requests-per-minute-per-ip: 2000
       window-size-seconds: 60
 
     cors:
       allowed-origins:
-        - http://localhost:3000    # React dev server
-        - http://localhost:3001    # Alternative React port
+        - http://localhost:3000
+        - http://localhost:3001
         - http://127.0.0.1:3000
         - http://127.0.0.1:3001
-      allow-credentials: true
-      max-age-seconds: 3600
 
     services:
-      # Local development service URLs
+      # Local development URLs
       identity-service-url: http://localhost:8082
       user-service-url: http://localhost:8083
       account-service-url: http://localhost:8084
@@ -77,21 +70,20 @@ banking:
       analytics-service-url: http://localhost:8092
       statement-service-url: http://localhost:8093
 
-# ── DEVELOPMENT LOGGING ──────────────────────────────────────────────
+# ── LOGGING (Verbose for development) ─────────────────────────────────
 logging:
   level:
-    root: INFO
-    com.banking.gateway: DEBUG  # Verbose logging for development
+    com.banking.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
     io.lettuce: INFO
     reactor.netty: INFO
 
-# ── DEVELOPMENT TRACING ──────────────────────────────────────────────
+# ── TRACING (Full sampling in dev) ────────────────────────────────────
 management:
   tracing:
     sampling:
-      probability: 1.0  # Sample all traces in development
+      probability: 1.0
   otlp:
     tracing:
-      endpoint: http://localhost:4318/v1/traces  # Local Jaeger
+      endpoint: http://localhost:4318/v1/traces

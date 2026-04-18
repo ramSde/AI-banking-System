@@ -1,8 +1,3 @@
-# ══════════════════════════════════════════════════════════════════════
-# API Gateway — OpenShift ConfigMap
-# Non-sensitive configuration values for production
-# ══════════════════════════════════════════════════════════════════════
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,37 +6,22 @@ metadata:
   labels:
     app: api-gateway
     component: gateway
+    tier: infrastructure
 data:
-  # Server Configuration
-  SERVER_PORT: "8080"
-  MANAGEMENT_PORT: "8081"
-  
-  # Redis Configuration
-  REDIS_HOST: "redis-service.banking-prod.svc.cluster.local"
-  REDIS_PORT: "6379"
-  REDIS_DATABASE: "0"
-  REDIS_CONNECT_TIMEOUT_MS: "2000"
-  REDIS_COMMAND_TIMEOUT_MS: "3000"
-  REDIS_POOL_MAX_ACTIVE: "50"
-  REDIS_POOL_MAX_IDLE: "20"
-  REDIS_POOL_MIN_IDLE: "5"
-  REDIS_POOL_MAX_WAIT_MS: "3000"
-  REDIS_SHUTDOWN_TIMEOUT_MS: "2000"
-  
   # JWT Configuration
-  JWT_ISSUER: "banking-platform"
-  JWT_AUDIENCE: "banking-api"
+  jwt-issuer: "banking-platform-prod"
+  jwt-audience: "banking-api-prod"
   
   # Rate Limiting Configuration
-  RATE_LIMIT_PER_USER: "60"
-  RATE_LIMIT_PER_IP: "120"
+  RATE_LIMIT_PER_USER: "100"
+  RATE_LIMIT_PER_IP: "200"
   RATE_LIMIT_WINDOW_SECONDS: "60"
   
   # CORS Configuration
-  CORS_ALLOWED_ORIGIN_1: "https://banking.your-domain.com"
-  CORS_MAX_AGE_SECONDS: "7200"
+  CORS_ALLOWED_ORIGIN_1: "https://banking.example.com"
+  CORS_MAX_AGE_SECONDS: "3600"
   
-  # Downstream Services (OpenShift DNS)
+  # Downstream Service URLs (OpenShift DNS)
   IDENTITY_SERVICE_URL: "http://identity-service.banking-prod.svc.cluster.local:8080"
   USER_SERVICE_URL: "http://user-service.banking-prod.svc.cluster.local:8080"
   ACCOUNT_SERVICE_URL: "http://account-service.banking-prod.svc.cluster.local:8080"
@@ -61,21 +41,25 @@ data:
   GATEWAY_HTTP_POOL_MAX_CONNECTIONS: "500"
   GATEWAY_HTTP_POOL_MAX_IDLE_TIME_MS: "20000"
   
-  # Server Configuration
-  SERVER_COMPRESSION_MIN_SIZE: "1024"
-  SERVER_NETTY_CONNECTION_TIMEOUT_MS: "10000"
-  SERVER_NETTY_IDLE_TIMEOUT_MS: "60000"
-  
-  # Health Check Configuration
+  # Actuator Configuration
   HEALTH_SHOW_DETAILS: "never"
   
   # Logging Configuration
   LOG_LEVEL_ROOT: "WARN"
   LOG_LEVEL_GATEWAY: "INFO"
-  LOG_LEVEL_SCG: "ERROR"
+  LOG_LEVEL_SCG: "WARN"
   LOG_LEVEL_LETTUCE: "ERROR"
   LOG_LEVEL_NETTY: "ERROR"
   
+  # Circuit Breaker Configuration
+  CIRCUIT_BREAKER_FAILURE_RATE: "50"
+  CIRCUIT_BREAKER_WAIT_DURATION: "30s"
+  CIRCUIT_BREAKER_HALF_OPEN_CALLS: "5"
+  CIRCUIT_BREAKER_SLIDING_WINDOW: "10"
+  CIRCUIT_BREAKER_MIN_CALLS: "5"
+  
   # Tracing Configuration
   TRACING_SAMPLING_PROBABILITY: "0.01"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces"
+  
+  # Environment Metadata
+  ENVIRONMENT: "prod"

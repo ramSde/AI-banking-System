@@ -1,57 +1,55 @@
 # ══════════════════════════════════════════════════════════════════════
 # API Gateway — application-staging.yml
-# Staging environment configuration
-# Used for pre-production testing in OpenShift
+# Staging environment configuration (OpenShift staging namespace)
 # ══════════════════════════════════════════════════════════════════════
 
 spring:
   profiles:
     active: staging
 
-# ── STAGING SERVER SETTINGS ──────────────────────────────────────────
+# ── STAGING OVERRIDES ────────────────────────────────────────────────
 server:
   port: 8080
 
 management:
-  server:
-    port: 8081
   endpoint:
     health:
-      show-details: when-authorized  # Limited health details in staging
+      show-details: when-authorized
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
 
-# ── STAGING REDIS SETTINGS ───────────────────────────────────────────
+# ── REDIS (OpenShift Redis service) ───────────────────────────────────
 spring:
   data:
     redis:
-      host: ${REDIS_HOST}  # Injected from OpenShift ConfigMap
-      port: ${REDIS_PORT:6379}
+      host: redis.banking-staging.svc.cluster.local
+      port: 6379
       password: ${REDIS_PASSWORD}  # Injected from OpenShift Secret
-      database: ${REDIS_DATABASE:0}
 
-# ── STAGING BANKING PROPERTIES ───────────────────────────────────────
+# ── BANKING GATEWAY STAGING SETTINGS ──────────────────────────────────
 banking:
   gateway:
     jwt:
-      # RSA public key injected from OpenShift Secret
+      # Staging RSA public key (injected from OpenShift Secret)
       public-key: ${JWT_PUBLIC_KEY}
-      issuer: ${JWT_ISSUER:banking-platform}
+      issuer: banking-platform-staging
       audience:
-        - ${JWT_AUDIENCE:banking-api}
+        - banking-api-staging
 
     rate-limit:
-      requests-per-minute-per-user: ${RATE_LIMIT_PER_USER:100}
-      requests-per-minute-per-ip: ${RATE_LIMIT_PER_IP:200}
-      window-size-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+      requests-per-minute-per-user: 200  # Moderate limits for staging
+      requests-per-minute-per-ip: 400
+      window-size-seconds: 60
 
     cors:
       allowed-origins:
-        - ${CORS_ALLOWED_ORIGIN_1}  # Staging frontend URL
-        - ${CORS_ALLOWED_ORIGIN_2}  # Additional staging URL if needed
-      allow-credentials: true
-      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
+        - https://banking-web-staging.apps.openshift.example.com
+        - https://banking-admin-staging.apps.openshift.example.com
 
     services:
-      # OpenShift service DNS names for staging namespace
+      # OpenShift DNS format for staging namespace
       identity-service-url: http://identity-service.banking-staging.svc.cluster.local:8080
       user-service-url: http://user-service.banking-staging.svc.cluster.local:8080
       account-service-url: http://account-service.banking-staging.svc.cluster.local:8080
@@ -65,21 +63,20 @@ banking:
       analytics-service-url: http://analytics-service.banking-staging.svc.cluster.local:8080
       statement-service-url: http://statement-service.banking-staging.svc.cluster.local:8080
 
-# ── STAGING LOGGING ──────────────────────────────────────────────────
+# ── LOGGING (Balanced for staging) ────────────────────────────────────
 logging:
   level:
-    root: INFO
     com.banking.gateway: INFO
-    org.springframework.cloud.gateway: WARN
-    org.springframework.security: WARN
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
     io.lettuce: WARN
     reactor.netty: WARN
 
-# ── STAGING TRACING ──────────────────────────────────────────────────
+# ── TRACING (Reduced sampling for staging) ────────────────────────────
 management:
   tracing:
     sampling:
-      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}  # 10% sampling in staging
+      probability: 0.1  # 10% sampling to reduce overhead
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}  # Staging Jaeger endpoint
+      endpoint: http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces
