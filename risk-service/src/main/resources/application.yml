@@ -1,0 +1,155 @@
+spring:
+  application:
+    name: risk-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:risk_db}?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      pool-name: RiskServiceHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/changelog-master.xml
+    default-schema: public
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-idle: 10
+          min-idle: 5
+          max-wait: 2000
+      timeout: 3000
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-service-consumer-group}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        isolation.level: read_committed
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+
+server:
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    accept-count: 100
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8083}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+
+risk:
+  thresholds:
+    low: ${RISK_THRESHOLD_LOW:30}
+    medium: ${RISK_THRESHOLD_MEDIUM:60}
+    high: ${RISK_THRESHOLD_HIGH:100}
+  cache:
+    ttl-seconds: ${RISK_CACHE_TTL_SECONDS:300}
+  weights:
+    new-device: ${RISK_WEIGHT_NEW_DEVICE:25}
+    new-location: ${RISK_WEIGHT_NEW_LOCATION:20}
+    velocity: ${RISK_WEIGHT_VELOCITY:15}
+    time-of-day: ${RISK_WEIGHT_TIME_OF_DAY:10}
+    failed-attempts: ${RISK_WEIGHT_FAILED_ATTEMPTS:30}
+
+jwt:
+  public-key-path: ${JWT_PUBLIC_KEY_PATH:/keys/public_key.pem}
+  issuer: ${JWT_ISSUER:banking-identity-service}
+
+kafka:
+  topics:
+    login-attempted: ${KAFKA_TOPIC_LOGIN_ATTEMPTED:banking.identity.login-attempted}
+    login-succeeded: ${KAFKA_TOPIC_LOGIN_SUCCEEDED:banking.identity.login-succeeded}
+    risk-assessment: ${KAFKA_TOPIC_RISK_ASSESSMENT:banking.risk.assessment-completed}
+    high-risk: ${KAFKA_TOPIC_HIGH_RISK:banking.risk.high-risk-detected}
+    mfa-required: ${KAFKA_TOPIC_MFA_REQUIRED:banking.risk.mfa-required}
+
+external:
+  otp-service:
+    url: ${OTP_SERVICE_URL:http://localhost:8082/api/v1/otp}
+    timeout: 5000
+  identity-service:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081/api/v1/auth}
+    timeout: 5000
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.banking: ${LOGGING_LEVEL_COM_BANKING:DEBUG}
+  file:
+    name: /var/log/risk-service/risk-service.log
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true

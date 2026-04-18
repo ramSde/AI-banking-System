@@ -42,6 +42,7 @@
         <module>api-gateway</module>
         <module>identity-service</module>
         <module>otp-service</module>
+        <module>risk-service</module>
         <module>shared</module>
         <!-- Future modules will be added here -->
         <!-- <module>user-service</module> -->
