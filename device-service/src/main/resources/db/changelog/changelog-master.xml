@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Version 001: Create device table -->
+    <include file="db/changelog/V001__create_device.sql" relativeToChangelogFile="false"/>
+
+    <!-- Version 002: Create device_history table -->
+    <include file="db/changelog/V002__create_device_history.sql" relativeToChangelogFile="false"/>
+
+    <!-- Version 003: Create device_anomaly table -->
+    <include file="db/changelog/V003__create_device_anomaly.sql" relativeToChangelogFile="false"/>
+
+    <!-- Version 004: Seed device types and statuses -->
+    <include file="db/changelog/V004__seed_reference_data.sql" relativeToChangelogFile="false"/>
+
+</databaseChangeLog>

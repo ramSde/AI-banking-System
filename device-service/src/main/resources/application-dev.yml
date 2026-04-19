@@ -1,0 +1,52 @@
+# Device Intelligence Service - Development Profile
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/device_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.banking.device: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# Actuator
+management:
+  endpoint:
+    health:
+      show-details: always
+
+# Swagger
+springdoc:
+  swagger-ui:
+    enabled: true
+
+# Device Configuration
+device:
+  fingerprint:
+    salt: dev-salt-2024
+  trust:
+    initial-score: 30
+  cache:
+    ttl-minutes: 5

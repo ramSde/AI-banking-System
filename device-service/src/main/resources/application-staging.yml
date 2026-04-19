@@ -1,0 +1,51 @@
+# Device Intelligence Service - Staging Profile
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+
+  jpa:
+    show-sql: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.banking.device: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+# Actuator
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Swagger
+springdoc:
+  swagger-ui:
+    enabled: true
+
+# Device Configuration
+device:
+  fingerprint:
+    salt: ${DEVICE_FINGERPRINT_SALT}
+  trust:
+    initial-score: 30
+  cache:
+    ttl-minutes: 10

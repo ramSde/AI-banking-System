@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: device-service
+  labels:
+    app: device-service
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: device-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: device-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+        prometheus.io/path: "/api/actuator/prometheus"
+    spec:
+      serviceAccountName: device-service
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres; sleep 2; done;']
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z kafka-service 9092; do echo waiting for kafka; sleep 2; done;']
+      containers:
+        - name: device-service
+          image: your-registry/device-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8084
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SERVER_PORT
+              value: "8084"
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: device-service-config
+                  key: db.url
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: device-service-secret
+                  key: db.username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: device-service-secret
+                  key: db.password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: device-service-config
+                  key: redis.host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: device-service-config
+                  key: redis.port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: device-service-secret
+                  key: redis.password
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: device-service-config
+                  key: kafka.bootstrap.servers
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: device-service-secret
+                  key: jwt.secret
+            - name: DEVICE_FINGERPRINT_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: device-service-secret
+                  key: device.fingerprint.salt
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: device-service
+  labels:
+    app: device-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8084
+      targetPort: 8084
+      protocol: TCP
+      name: http
+  selector:
+    app: device-service
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: device-service
