@@ -1,0 +1,144 @@
+spring:
+  application:
+    name: fraud-detection-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/banking_fraud}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:20}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      connection-test-query: SELECT 1
+      pool-name: FraudDetectionHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  liquibase:
+    change-log: classpath:db/changelog/changelog-master.xml
+    enabled: true
+  
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000ms}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+          max-idle: ${REDIS_POOL_MAX_IDLE:8}
+          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-wait: ${REDIS_POOL_MAX_WAIT:2000ms}
+  
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:fraud-detection-consumer-group}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.banking.*
+        max.poll.records: 100
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 2147483647
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        compression.type: snappy
+        linger.ms: 10
+        batch.size: 32768
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${CACHE_TTL:3600000}
+  
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:15MB}
+
+server:
+  port: ${SERVER_PORT:8088}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  tomcat:
+    threads:
+      max: ${TOMCAT_THREADS_MAX:200}
+      min-spare: ${TOMCAT_THREADS_MIN_SPARE:10}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-environment}
+
+fraud:
+  scoring:
+    high-risk-threshold: ${FRAUD_HIGH_RISK_THRESHOLD:70}
+    medium-risk-threshold: ${FRAUD_MEDIUM_RISK_THRESHOLD:30}
+    auto-block-threshold: ${FRAUD_AUTO_BLOCK_THRESHOLD:85}
+  velocity:
+    transaction-count-window-minutes: ${FRAUD_VELOCITY_WINDOW:60}
+    max-transactions-per-window: ${FRAUD_MAX_TRANSACTIONS:10}
+  amount:
+    large-transaction-threshold: ${FRAUD_LARGE_AMOUNT:10000.00}
+    suspicious-amount-threshold: ${FRAUD_SUSPICIOUS_AMOUNT:50000.00}
+
+logging:
+  level:
+    root: INFO
+    com.banking.fraud: DEBUG
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

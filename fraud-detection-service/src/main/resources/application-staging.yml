@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-staging:5432/banking_fraud?autoReconnect=true&useSSL=true&characterEncoding=utf8
+    hikari:
+      maximum-pool-size: 15
+
+  data:
+    redis:
+      host: redis-staging
+      port: 6379
+
+  kafka:
+    bootstrap-servers: kafka-staging:9092
+
+server:
+  port: 8088
+
+logging:
+  level:
+    root: INFO
+    com.banking.fraud: INFO

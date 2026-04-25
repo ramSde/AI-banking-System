@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <include file="db/changelog/V001__create_fraud_rule.sql"/>
+    <include file="db/changelog/V002__create_fraud_check.sql"/>
+    <include file="db/changelog/V003__create_fraud_alert.sql"/>
+    <include file="db/changelog/V004__create_fraud_pattern.sql"/>
+    <include file="db/changelog/V005__create_indexes.sql"/>
+    <include file="db/changelog/V006__seed_default_rules.sql"/>
+
+</databaseChangeLog>
