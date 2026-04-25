@@ -1,0 +1,77 @@
+# User Service - Production Profile
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+
+# Logging
+logging:
+  level:
+    root: WARN
+    com.banking.user: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+# Actuator
+management:
+  endpoint:
+    health:
+      show-details: never
+
+# Swagger
+springdoc:
+  swagger-ui:
+    enabled: false
+
+# User Configuration
+user:
+  encryption:
+    algorithm: ${USER_ENCRYPTION_ALGORITHM}
+    key: ${USER_ENCRYPTION_KEY}
+  cache:
+    profile-ttl-minutes: ${USER_CACHE_PROFILE_TTL:15}
+    preference-ttl-minutes: ${USER_CACHE_PREFERENCE_TTL:30}
+  kyc:
+    document-max-size-mb: ${USER_KYC_DOC_MAX_SIZE:10}
+    verification-expiry-days: ${USER_KYC_EXPIRY_DAYS:365}
+
+# JWT
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:900000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# Security Headers
+server:
+  ssl:
+    enabled: true

@@ -1,0 +1,61 @@
+# User Service - Development Profile
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/user_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.banking.user: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# Actuator
+management:
+  endpoint:
+    health:
+      show-details: always
+
+# Swagger
+springdoc:
+  swagger-ui:
+    enabled: true
+
+# User Configuration
+user:
+  encryption:
+    algorithm: AES/GCM/NoPadding
+    key: dev-32-byte-encryption-key-2024
+  cache:
+    profile-ttl-minutes: 15
+    preference-ttl-minutes: 30
+  kyc:
+    document-max-size-mb: 10
+    verification-expiry-days: 365
+
+# JWT
+jwt:
+  secret: dev-jwt-secret-key-change-in-production-256-bits
+  expiration: 900000
+  refresh-expiration: 604800000
