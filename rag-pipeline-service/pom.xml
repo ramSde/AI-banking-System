@@ -175,6 +175,13 @@
             <version>3.14.0</version>
         </dependency>
 
+        <!-- Hypersistence Utils for JSONB -->
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+            <version>3.7.3</version>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
