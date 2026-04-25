@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: document-ingestion-service
+  labels:
+    app: document-ingestion-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8012
+      targetPort: 8012
+      protocol: TCP
+      name: http
+  selector:
+    app: document-ingestion-service

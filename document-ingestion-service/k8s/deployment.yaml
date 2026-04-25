@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-ingestion-service
+  labels:
+    app: document-ingestion-service
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: document-ingestion-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: document-ingestion-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8012"
+        prometheus.io/path: "/api/actuator/prometheus"
+    spec:
+      serviceAccountName: document-ingestion-service
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres; sleep 2; done;']
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z kafka-service 9092; do echo waiting for kafka; sleep 2; done;']
+      containers:
+        - name: document-ingestion-service
+          image: your-registry/document-ingestion-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8012
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: database.url
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: database.username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: database.password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: redis.host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: redis.port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: redis.password
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: kafka.bootstrap-servers
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: minio.endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: minio.access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: minio.secret-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: openai.api-key
+            - name: CHROMA_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: chroma.host
+            - name: CHROMA_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: document-ingestion-config
+                  key: chroma.port
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: document-ingestion-secrets
+                  key: jwt.secret
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: 8012
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/actuator/health/readiness
+              port: 8012
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}

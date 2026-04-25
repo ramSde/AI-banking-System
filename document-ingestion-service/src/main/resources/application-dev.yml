@@ -1,0 +1,61 @@
+server:
+  port: 8012
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/banking_documents?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+  
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-test-key}
+    vectorstore:
+      chroma:
+        client:
+          host: localhost
+          port: 8000
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: admin
+  secret-key: password
+  bucket-name: banking-documents
+  secure: false
+
+document:
+  processing:
+    tesseract-data-path: /usr/share/tesseract-ocr/4.00/tessdata
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    root: INFO
+    com.banking.document: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
