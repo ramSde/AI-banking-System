@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 40
+      minimum-idle: 15
+  
+  jpa:
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+logging:
+  level:
+    root: INFO
+    com.banking: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+
+transaction:
+  limits:
+    max-amount: 1000000.00
+    daily-limit-user: 50000.00

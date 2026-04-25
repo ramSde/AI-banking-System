@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: account-service-config
+data:
+  db.url: "jdbc:postgresql://postgres-service:5432/account_db"
+  redis.host: "redis-service"
+  redis.port: "6379"
+  kafka.bootstrap.servers: "kafka-service:9092"
+  account.cache.balance-ttl: "5"
+  account.cache.details-ttl: "15"
+  account.number.prefix: "ACC"
+  account.iban.country-code: "US"
+  account.iban.bank-code: "BANK"
+  account.default-currency: "USD"
+  account.min-balance.savings: "100.00"
+  account.min-balance.checking: "0.00"
+  account.max-accounts-per-user: "10"

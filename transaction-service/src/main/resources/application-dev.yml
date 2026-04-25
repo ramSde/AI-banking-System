@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/transaction_db
+    username: admin
+    password: admin
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    root: INFO
+    com.banking: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+
+transaction:
+  limits:
+    max-amount: 1000000.00
+    daily-limit-user: 50000.00

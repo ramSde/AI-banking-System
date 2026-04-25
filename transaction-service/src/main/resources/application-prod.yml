@@ -1,0 +1,45 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 20
+  
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        generate_statistics: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SSL
+
+logging:
+  level:
+    root: WARN
+    com.banking: INFO
+    org.springframework.web: ERROR
+    org.springframework.security: WARN
+
+transaction:
+  limits:
+    max-amount: 1000000.00
+    daily-limit-user: 50000.00
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus

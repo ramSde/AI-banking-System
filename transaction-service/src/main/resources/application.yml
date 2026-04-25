@@ -1,0 +1,164 @@
+spring:
+  application:
+    name: transaction-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/transaction_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:30}
+      minimum-idle: ${DB_MIN_IDLE:10}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      pool-name: TransactionServiceHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  liquibase:
+    change-log: classpath:db/changelog/changelog-master.xml
+    enabled: true
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:30}
+          max-idle: ${REDIS_POOL_MAX_IDLE:15}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+          max-wait: 2000ms
+      timeout: 3000ms
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 2147483647
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        max.request.size: 10485760
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:transaction-service-consumer-group}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+        isolation.level: read_committed
+  
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+server:
+  port: ${SERVER_PORT:8087}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    accept-count: 100
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics,prometheus}
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: ${MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED:true}
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.banking: ${LOGGING_LEVEL_COM_BANKING:DEBUG}
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+transaction:
+  reference:
+    prefix: ${TRANSACTION_REFERENCE_PREFIX:TXN}
+  idempotency:
+    ttl-hours: ${TRANSACTION_IDEMPOTENCY_TTL_HOURS:24}
+  limits:
+    max-amount: ${TRANSACTION_MAX_AMOUNT:1000000.00}
+    daily-limit-user: ${TRANSACTION_DAILY_LIMIT_USER:50000.00}
+  hold:
+    expiry-hours: ${TRANSACTION_HOLD_EXPIRY_HOURS:72}
+
+account-service:
+  url: ${ACCOUNT_SERVICE_URL:http://localhost:8086/api}
+  timeout-seconds: ${ACCOUNT_SERVICE_TIMEOUT_SECONDS:10}
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      accountService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 5
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+  retry:
+    instances:
+      accountService:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
