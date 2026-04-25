@@ -1,0 +1,53 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/audit_db?autoReconnect=true&useSSL=false&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull
+    username: admin
+    password: admin
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: banking-audit-service-consumer-group-dev
+
+server:
+  port: 8090
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    root: INFO
+    com.banking.audit: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+audit:
+  retention-days: 2555
+  query-max-results: 1000
+  partition-enabled: false
+
+jwt:
+  secret: dev-secret-key-for-local-development-only-change-in-production
+  expiration: 900000
+
+springdoc:
+  swagger-ui:
+    enabled: true

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraud-detection-config
+data:
+  database.url: "jdbc:postgresql://postgres-service:5432/banking_fraud"
+  redis.host: "redis-service"
+  kafka.bootstrap-servers: "kafka-service:9092"
+  fraud.high-risk-threshold: "70"
+  fraud.medium-risk-threshold: "30"
+  fraud.auto-block-threshold: "85"
+  fraud.velocity-window: "60"
+  fraud.max-transactions: "10"
+  fraud.large-amount: "10000.00"
+  fraud.suspicious-amount: "50000.00"

@@ -1,25 +1,58 @@
 spring:
   datasource:
-    url: jdbc:postgresql://postgres-prod:5432/banking_fraud?autoReconnect=true&useSSL=true&characterEncoding=utf8&sslmode=require
+    url: jdbc:postgresql://${DB_HOST}:5432/banking_fraud?autoReconnect=true&useSSL=true&sslmode=require&characterEncoding=utf8
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
-
+  
+  jpa:
+    show-sql: false
+  
   data:
     redis:
-      host: redis-prod
+      host: ${REDIS_HOST}
       port: 6379
-      ssl: true
-
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+  
   kafka:
-    bootstrap-servers: kafka-prod:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     properties:
       security.protocol: SSL
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD}
 
 server:
   port: 8088
+  ssl:
+    enabled: true
+    key-store: ${SSL_KEYSTORE_PATH}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD}
+    key-store-type: PKCS12
+
+management:
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   level:
     root: WARN
     com.banking.fraud: INFO
+    org.springframework.kafka: ERROR
+    org.hibernate.SQL: ERROR
+
+fraud:
+  scoring:
+    high-risk-threshold: ${FRAUD_HIGH_RISK_THRESHOLD:70}
+    medium-risk-threshold: ${FRAUD_MEDIUM_RISK_THRESHOLD:30}
+    auto-block-threshold: ${FRAUD_AUTO_BLOCK_THRESHOLD:85}
+  velocity:
+    transaction-count-window-minutes: ${FRAUD_VELOCITY_WINDOW:60}
+    max-transactions-per-window: ${FRAUD_MAX_TRANSACTIONS:10}
+  amount:
+    large-transaction-threshold: ${FRAUD_LARGE_AMOUNT:10000.00}
+    suspicious-amount-threshold: ${FRAUD_SUSPICIOUS_AMOUNT:50000.00}

@@ -1,5 +1,7 @@
--- Fraud Alert Table
--- Stores fraud alerts for investigation
+--liquibase formatted sql
+
+--changeset fraud-detection:3
+--comment: Create fraud_alert table for tracking fraud alerts
 
 CREATE TABLE fraud_alert (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -10,7 +12,6 @@ CREATE TABLE fraud_alert (
     severity VARCHAR(20) NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'OPEN',
     description TEXT,
-    alert_details JSONB,
     assigned_to UUID,
     resolved_at TIMESTAMPTZ,
     resolution_notes TEXT,
@@ -20,23 +21,21 @@ CREATE TABLE fraud_alert (
     version BIGINT NOT NULL DEFAULT 0
 );
 
-COMMENT ON TABLE fraud_alert IS 'Fraud alerts requiring investigation';
-COMMENT ON COLUMN fraud_alert.id IS 'Primary key';
-COMMENT ON COLUMN fraud_alert.fraud_check_id IS 'Associated fraud check';
+COMMENT ON TABLE fraud_alert IS 'Fraud alerts requiring investigation or action';
+COMMENT ON COLUMN fraud_alert.id IS 'Primary key UUID';
+COMMENT ON COLUMN fraud_alert.fraud_check_id IS 'Reference to fraud check that triggered alert';
 COMMENT ON COLUMN fraud_alert.transaction_id IS 'Transaction that triggered alert';
 COMMENT ON COLUMN fraud_alert.user_id IS 'User associated with alert';
-COMMENT ON COLUMN fraud_alert.alert_type IS 'Type: HIGH_RISK, SUSPICIOUS_PATTERN, BLOCKED_TRANSACTION';
-COMMENT ON COLUMN fraud_alert.severity IS 'Severity: LOW, MEDIUM, HIGH, CRITICAL';
-COMMENT ON COLUMN fraud_alert.status IS 'Status: OPEN, INVESTIGATING, RESOLVED, FALSE_POSITIVE';
-COMMENT ON COLUMN fraud_alert.description IS 'Alert description';
-COMMENT ON COLUMN fraud_alert.alert_details IS 'Detailed alert information as JSON';
+COMMENT ON COLUMN fraud_alert.alert_type IS 'Type of alert (HIGH_RISK, BLOCKED, PATTERN_DETECTED, etc.)';
+COMMENT ON COLUMN fraud_alert.severity IS 'Alert severity (LOW, MEDIUM, HIGH, CRITICAL)';
+COMMENT ON COLUMN fraud_alert.status IS 'Alert status (OPEN, INVESTIGATING, RESOLVED, FALSE_POSITIVE)';
+COMMENT ON COLUMN fraud_alert.description IS 'Human-readable alert description';
 COMMENT ON COLUMN fraud_alert.assigned_to IS 'Admin user assigned to investigate';
-COMMENT ON COLUMN fraud_alert.resolved_at IS 'When alert was resolved';
-COMMENT ON COLUMN fraud_alert.resolution_notes IS 'Resolution notes';
-COMMENT ON COLUMN fraud_alert.created_at IS 'Creation timestamp';
-COMMENT ON COLUMN fraud_alert.updated_at IS 'Last update timestamp';
+COMMENT ON COLUMN fraud_alert.resolved_at IS 'Timestamp when alert was resolved';
+COMMENT ON COLUMN fraud_alert.resolution_notes IS 'Notes from investigation/resolution';
+COMMENT ON COLUMN fraud_alert.created_at IS 'Alert creation timestamp';
+COMMENT ON COLUMN fraud_alert.updated_at IS 'Alert update timestamp';
 COMMENT ON COLUMN fraud_alert.deleted_at IS 'Soft delete timestamp';
 COMMENT ON COLUMN fraud_alert.version IS 'Optimistic locking version';
 
--- Rollback
 --rollback DROP TABLE fraud_alert;
