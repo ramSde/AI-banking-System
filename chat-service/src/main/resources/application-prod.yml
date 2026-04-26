@@ -1,0 +1,76 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  
+  jpa:
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SSL
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD}
+      ssl.keystore.location: ${KAFKA_KEYSTORE_LOCATION}
+      ssl.keystore.password: ${KAFKA_KEYSTORE_PASSWORD}
+
+server:
+  port: 8086
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 0.1
+
+logging:
+  level:
+    root: WARN
+    com.banking.chat: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+chat:
+  max-history-messages: 20
+  session-timeout-minutes: 30
+  max-message-length: 4000
+  context-window-tokens: 8000
+  enable-streaming: true
+  rate-limit:
+    messages-per-minute: 20
+    messages-per-hour: 100
+
+ai:
+  orchestration:
+    url: ${AI_ORCHESTRATION_URL}
+    timeout:
+      connect: 5000
+      read: 60000
+  
+  rag:
+    url: ${RAG_PIPELINE_URL}
+    timeout:
+      connect: 5000
+      read: 30000

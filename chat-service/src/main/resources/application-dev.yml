@@ -1,0 +1,70 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chat_db
+    username: admin
+    password: admin
+    hikari:
+      maximum-pool-size: 10
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+
+server:
+  port: 8086
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    root: INFO
+    com.banking.chat: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+chat:
+  max-history-messages: 20
+  session-timeout-minutes: 30
+  max-message-length: 4000
+  context-window-tokens: 8000
+  enable-streaming: true
+  rate-limit:
+    messages-per-minute: 50
+    messages-per-hour: 500
+
+ai:
+  orchestration:
+    url: http://localhost:8084/api
+    timeout:
+      connect: 5000
+      read: 60000
+  
+  rag:
+    url: http://localhost:8083/api
+    timeout:
+      connect: 5000
+      read: 30000
