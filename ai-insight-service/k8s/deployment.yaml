@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-insight-service
+  labels:
+    app: ai-insight-service
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-insight-service
+  template:
+    metadata:
+      labels:
+        app: ai-insight-service
+        version: v1
+    spec:
+      containers:
+      - name: ai-insight-service
+        image: banking-platform/ai-insight-service:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: database.url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ai-insight-secrets
+              key: database.username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ai-insight-secrets
+              key: database.password
+        - name: SPRING_DATA_REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: redis.host
+        - name: SPRING_DATA_REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: redis.port
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: kafka.bootstrap-servers
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ai-insight-secrets
+              key: jwt.secret
+        - name: AI_ORCHESTRATION_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: ai-orchestration.base-url
+        - name: TRANSACTION_SERVICE_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: transaction-service.base-url
+        - name: ACCOUNT_SERVICE_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ai-insight-config
+              key: account-service.base-url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always

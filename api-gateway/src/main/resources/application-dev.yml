@@ -1,89 +1,101 @@
-# ══════════════════════════════════════════════════════════════════════
-# API Gateway — application-dev.yml
-# Development profile configuration
-# ══════════════════════════════════════════════════════════════════════
-
-spring:
-  profiles:
-    active: dev
-
-# ── DEVELOPMENT OVERRIDES ────────────────────────────────────────────
 server:
   port: 8080
+
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - http://localhost:3000
+              - http://localhost:3001
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
 
 management:
   endpoint:
     health:
       show-details: always
-  endpoints:
-    web:
-      exposure:
-        include: "*"  # Expose all actuator endpoints in dev
-
-# ── REDIS (Local Docker) ──────────────────────────────────────────────
-spring:
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      password: ""
-
-# ── BANKING GATEWAY DEV SETTINGS ──────────────────────────────────────
-banking:
-  gateway:
-    jwt:
-      # Development RSA public key (matches identity-service dev private key)
-      public-key: |
-        -----BEGIN PUBLIC KEY-----
-        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
-        fGnJm6gOdrj8ym3rFkEjWT2btf06yzRtVy4pv+Q2jdkdyVQ+6XvIIlVtc9+5VgLI
-        xVHrQOHNZmrYGAMY9+5xGfeNUROnsHhNz2CaHdNdkiVDdV9lEcww5GeLvDRHQwLI
-        -----END PUBLIC KEY-----
-      issuer: banking-platform-dev
-      audience:
-        - banking-api-dev
-
-    rate-limit:
-      requests-per-minute-per-user: 1000  # Relaxed for development
-      requests-per-minute-per-ip: 2000
-      window-size-seconds: 60
-
-    cors:
-      allowed-origins:
-        - http://localhost:3000
-        - http://localhost:3001
-        - http://127.0.0.1:3000
-        - http://127.0.0.1:3001
-
-    services:
-      # Local development URLs
-      identity-service-url: http://localhost:8082
-      user-service-url: http://localhost:8083
-      account-service-url: http://localhost:8084
-      transaction-service-url: http://localhost:8085
-      fraud-service-url: http://localhost:8086
-      audit-service-url: http://localhost:8087
-      notification-service-url: http://localhost:8088
-      chat-service-url: http://localhost:8089
-      ai-orchestration-service-url: http://localhost:8090
-      document-ingestion-service-url: http://localhost:8091
-      analytics-service-url: http://localhost:8092
-      statement-service-url: http://localhost:8093
-
-# ── LOGGING (Verbose for development) ─────────────────────────────────
-logging:
-  level:
-    com.banking.gateway: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.security: DEBUG
-    io.lettuce: INFO
-    reactor.netty: INFO
-
-# ── TRACING (Full sampling in dev) ────────────────────────────────────
-management:
   tracing:
     sampling:
       probability: 1.0
-  otlp:
-    tracing:
-      endpoint: http://localhost:4318/v1/traces
+
+logging:
+  level:
+    root: INFO
+    com.banking.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG
+
+gateway:
+  rate-limit:
+    enabled: true
+    per-user-limit: 1000
+    per-ip-limit: 2000
+  
+  routes:
+    identity-service:
+      uri: http://localhost:8081
+    otp-service:
+      uri: http://localhost:8082
+    mfa-service:
+      uri: http://localhost:8083
+    risk-auth-service:
+      uri: http://localhost:8084
+    device-intelligence-service:
+      uri: http://localhost:8085
+    user-service:
+      uri: http://localhost:8086
+    account-service:
+      uri: http://localhost:8087
+    transaction-service:
+      uri: http://localhost:8088
+    fraud-detection-service:
+      uri: http://localhost:8089
+    audit-service:
+      uri: http://localhost:8090
+    notification-service:
+      uri: http://localhost:8091
+    document-ingestion-service:
+      uri: http://localhost:8092
+    rag-pipeline-service:
+      uri: http://localhost:8093
+    ai-orchestration-service:
+      uri: http://localhost:8094
+    ai-insight-service:
+      uri: http://localhost:8095
+    chat-service:
+      uri: http://localhost:8096
+    vision-processing-service:
+      uri: http://localhost:8097
+    speech-to-text-service:
+      uri: http://localhost:8098
+    text-to-speech-service:
+      uri: http://localhost:8099
+    statement-service:
+      uri: http://localhost:8100
+    admin-dashboard-service:
+      uri: http://localhost:8101
+    transaction-categorization-service:
+      uri: http://localhost:8102
+    analytics-service:
+      uri: http://localhost:8103
+    budget-service:
+      uri: http://localhost:8104
+    search-service:
+      uri: http://localhost:8105
+    export-service:
+      uri: http://localhost:8106
+    dashboard-aggregation-service:
+      uri: http://localhost:8107
+    reconciliation-service:
+      uri: http://localhost:8108
+    backoffice-service:
+      uri: http://localhost:8109
+    multi-language-service:
+      uri: http://localhost:8110

@@ -1,85 +1,83 @@
-# ══════════════════════════════════════════════════════════════════════
-# API Gateway — application.yml
-# ALL values use ${ENV_VAR:default} pattern — zero hardcoded config.
-# Production values are injected via OpenShift ConfigMap + Secrets.
-# Ref: https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
-# ══════════════════════════════════════════════════════════════════════
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  netty:
+    connection-timeout: ${SERVER_CONNECTION_TIMEOUT:30s}
+    idle-timeout: ${SERVER_IDLE_TIMEOUT:60s}
 
 spring:
   application:
     name: api-gateway
-
-  # ── PROFILES ────────────────────────────────────────────────────────
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
-
-  # ── CLOUD GATEWAY ───────────────────────────────────────────────────
-  # Routes are defined programmatically in GatewayRoutingConfig.java
-  # Ref: https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/
+  
   cloud:
     gateway:
-      # Enable reactive HTTP client (default in SCG 4.x)
       httpclient:
-        connect-timeout: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MS:5000}
-        response-timeout: ${GATEWAY_HTTP_RESPONSE_TIMEOUT_MS:30000}
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT:5000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:30s}
         pool:
-          max-connections: ${GATEWAY_HTTP_POOL_MAX_CONNECTIONS:500}
-          max-idle-time: ${GATEWAY_HTTP_POOL_MAX_IDLE_TIME_MS:20000}
-      # Default filters applied to ALL routes
+          type: elastic
+          max-connections: ${GATEWAY_MAX_CONNECTIONS:500}
+          max-idle-time: ${GATEWAY_MAX_IDLE_TIME:30s}
+      
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
-      # Metrics per route — feeds Prometheus / Grafana dashboards
-      metrics:
-        enabled: true
-        tags:
-          path:
-            enabled: true
-
-  # ── REDIS (Lettuce reactive) ─────────────────────────────────────────
-  # Used for rate limiting sliding window counters.
-  # Ref: https://lettuce.io/docs/
+        - name: Retry
+          args:
+            retries: 3
+            statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+            methods: GET
+            backoff:
+              firstBackoff: 50ms
+              maxBackoff: 500ms
+              factor: 2
+              basedOnPreviousValue: true
+      
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            exposedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Trace-Id
+              - X-Request-Id
+            allowCredentials: true
+            maxAge: 3600
+  
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
-      connect-timeout: ${REDIS_CONNECT_TIMEOUT_MS:2000}
-      timeout: ${REDIS_COMMAND_TIMEOUT_MS:3000}
+      timeout: ${REDIS_TIMEOUT:5000ms}
       lettuce:
         pool:
           max-active: ${REDIS_POOL_MAX_ACTIVE:20}
           max-idle: ${REDIS_POOL_MAX_IDLE:10}
-          min-idle: ${REDIS_POOL_MIN_IDLE:2}
-          max-wait: ${REDIS_POOL_MAX_WAIT_MS:3000}
-        # Shared connection pool between reactive subscriptions
-        shutdown-timeout: ${REDIS_SHUTDOWN_TIMEOUT_MS:2000}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+          max-wait: ${REDIS_POOL_MAX_WAIT:2000ms}
+        shutdown-timeout: ${REDIS_SHUTDOWN_TIMEOUT:100ms}
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: ${JWT_PUBLIC_KEY_LOCATION:classpath:public-key.pem}
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8081}
 
-# ── SERVER ────────────────────────────────────────────────────────────
-server:
-  port: ${SERVER_PORT:8080}
-  # Context path kept empty at gateway — all routes include /api prefix
-  servlet:
-    context-path: /
-  # Netty (reactive) compression
-  compression:
-    enabled: true
-    min-response-size: ${SERVER_COMPRESSION_MIN_SIZE:1024}
-    mime-types:
-      - application/json
-      - application/xml
-      - text/html
-      - text/plain
-  # Netty-specific tuning (Spring Boot 3+ reactive server)
-  netty:
-    connection-timeout: ${SERVER_NETTY_CONNECTION_TIMEOUT_MS:10000}
-    idle-timeout: ${SERVER_NETTY_IDLE_TIMEOUT_MS:60000}
-
-# ── ACTUATOR (health, metrics, prometheus) ────────────────────────────
-# Ref: https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
 management:
-  server:
-    port: ${MANAGEMENT_PORT:8081}
   endpoints:
     web:
       exposure:
@@ -89,12 +87,9 @@ management:
     health:
       show-details: ${HEALTH_SHOW_DETAILS:when-authorized}
       probes:
-        enabled: true        # enables /actuator/health/liveness and /readiness
-      group:
-        liveness:
-          include: livenessState
-        readiness:
-          include: readinessState,redis
+        enabled: true
+    prometheus:
+      enabled: true
   metrics:
     export:
       prometheus:
@@ -102,75 +97,188 @@ management:
     tags:
       application: ${spring.application.name}
       environment: ${SPRING_PROFILES_ACTIVE:dev}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   tracing:
     sampling:
       probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4317}
 
-# ── BANKING GATEWAY PROPERTIES ────────────────────────────────────────
-banking:
-  gateway:
-    jwt:
-      # RSA public key in PEM format. Must match Identity Service's private key.
-      # In production: injected from OpenShift Secret / HashiCorp Vault.
-      # NEVER commit actual key values to source control.
-      public-key: ${JWT_PUBLIC_KEY}
-      issuer: ${JWT_ISSUER:banking-platform}
-      audience:
-        - ${JWT_AUDIENCE:banking-api}
-
-    rate-limit:
-      requests-per-minute-per-user: ${RATE_LIMIT_PER_USER:100}
-      requests-per-minute-per-ip: ${RATE_LIMIT_PER_IP:200}
-      window-size-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
-
-    cors:
-      allowed-origins:
-        - ${CORS_ALLOWED_ORIGIN_1:http://localhost:3000}
-      allowed-methods:
-        - GET
-        - POST
-        - PUT
-        - PATCH
-        - DELETE
-        - OPTIONS
-      allowed-headers:
-        - Authorization
-        - Content-Type
-        - X-Requested-With
-        - Idempotency-Key
-        - Accept
-        - Accept-Language
-        - X-Device-Id
-      allow-credentials: true
-      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
-
-    services:
-      # OpenShift DNS format: http://{service-name}.{namespace}.svc.cluster.local:{port}
-      identity-service-url: ${IDENTITY_SERVICE_URL:http://localhost:8082}
-      user-service-url: ${USER_SERVICE_URL:http://localhost:8083}
-      account-service-url: ${ACCOUNT_SERVICE_URL:http://localhost:8084}
-      transaction-service-url: ${TRANSACTION_SERVICE_URL:http://localhost:8085}
-      fraud-service-url: ${FRAUD_SERVICE_URL:http://localhost:8086}
-      audit-service-url: ${AUDIT_SERVICE_URL:http://localhost:8087}
-      notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8088}
-      chat-service-url: ${CHAT_SERVICE_URL:http://localhost:8089}
-      ai-orchestration-service-url: ${AI_ORCHESTRATION_SERVICE_URL:http://localhost:8090}
-      document-ingestion-service-url: ${DOCUMENT_INGESTION_SERVICE_URL:http://localhost:8091}
-      analytics-service-url: ${ANALYTICS_SERVICE_URL:http://localhost:8092}
-      statement-service-url: ${STATEMENT_SERVICE_URL:http://localhost:8093}
-
-# ── LOGGING ───────────────────────────────────────────────────────────
-# Full structured JSON logging is configured in logback-spring.xml.
-# These properties control log levels per package.
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
-    com.banking.gateway: ${LOG_LEVEL_GATEWAY:INFO}
-    org.springframework.cloud.gateway: ${LOG_LEVEL_SCG:WARN}
-    io.lettuce: ${LOG_LEVEL_LETTUCE:WARN}
-    reactor.netty: ${LOG_LEVEL_NETTY:WARN}
-  # Logback config location (structured JSON format)
-  config: classpath:logback-spring.xml
+    com.banking.gateway: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.cloud.gateway: ${LOG_LEVEL_GATEWAY:DEBUG}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
+    io.lettuce: ${LOG_LEVEL_REDIS:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+gateway:
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    issuer: ${JWT_ISSUER:banking-platform}
+    audience: ${JWT_AUDIENCE:banking-api}
+  
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    per-user-limit: ${RATE_LIMIT_PER_USER:100}
+    per-ip-limit: ${RATE_LIMIT_PER_IP:200}
+    window-size-seconds: ${RATE_LIMIT_WINDOW_SIZE:60}
+  
+  routes:
+    identity-service:
+      uri: ${IDENTITY_SERVICE_URI:http://localhost:8081}
+      path: /api/v1/auth/**
+    
+    otp-service:
+      uri: ${OTP_SERVICE_URI:http://localhost:8082}
+      path: /api/v1/otp/**
+    
+    mfa-service:
+      uri: ${MFA_SERVICE_URI:http://localhost:8083}
+      path: /api/v1/mfa/**
+    
+    risk-auth-service:
+      uri: ${RISK_AUTH_SERVICE_URI:http://localhost:8084}
+      path: /api/v1/risk-auth/**
+    
+    device-intelligence-service:
+      uri: ${DEVICE_INTELLIGENCE_SERVICE_URI:http://localhost:8085}
+      path: /api/v1/devices/**
+    
+    user-service:
+      uri: ${USER_SERVICE_URI:http://localhost:8086}
+      path: /api/v1/users/**
+    
+    account-service:
+      uri: ${ACCOUNT_SERVICE_URI:http://localhost:8087}
+      path: /api/v1/accounts/**
+    
+    transaction-service:
+      uri: ${TRANSACTION_SERVICE_URI:http://localhost:8088}
+      path: /api/v1/transactions/**
+    
+    fraud-detection-service:
+      uri: ${FRAUD_DETECTION_SERVICE_URI:http://localhost:8089}
+      path: /api/v1/fraud/**
+    
+    audit-service:
+      uri: ${AUDIT_SERVICE_URI:http://localhost:8090}
+      path: /api/v1/audit/**
+    
+    notification-service:
+      uri: ${NOTIFICATION_SERVICE_URI:http://localhost:8091}
+      path: /api/v1/notifications/**
+    
+    document-ingestion-service:
+      uri: ${DOCUMENT_INGESTION_SERVICE_URI:http://localhost:8092}
+      path: /api/v1/documents/**
+    
+    rag-pipeline-service:
+      uri: ${RAG_PIPELINE_SERVICE_URI:http://localhost:8093}
+      path: /api/v1/rag/**
+    
+    ai-orchestration-service:
+      uri: ${AI_ORCHESTRATION_SERVICE_URI:http://localhost:8094}
+      path: /api/v1/ai/**
+    
+    ai-insight-service:
+      uri: ${AI_INSIGHT_SERVICE_URI:http://localhost:8095}
+      path: /api/v1/insights/**
+    
+    chat-service:
+      uri: ${CHAT_SERVICE_URI:http://localhost:8096}
+      path: /api/v1/chat/**
+    
+    vision-processing-service:
+      uri: ${VISION_PROCESSING_SERVICE_URI:http://localhost:8097}
+      path: /api/v1/vision/**
+    
+    speech-to-text-service:
+      uri: ${SPEECH_TO_TEXT_SERVICE_URI:http://localhost:8098}
+      path: /api/v1/speech/**
+    
+    text-to-speech-service:
+      uri: ${TEXT_TO_SPEECH_SERVICE_URI:http://localhost:8099}
+      path: /api/v1/tts/**
+    
+    statement-service:
+      uri: ${STATEMENT_SERVICE_URI:http://localhost:8100}
+      path: /api/v1/statements/**
+    
+    admin-dashboard-service:
+      uri: ${ADMIN_DASHBOARD_SERVICE_URI:http://localhost:8101}
+      path: /api/v1/admin/**
+    
+    transaction-categorization-service:
+      uri: ${TRANSACTION_CATEGORIZATION_SERVICE_URI:http://localhost:8102}
+      path: /api/v1/categories/**
+    
+    analytics-service:
+      uri: ${ANALYTICS_SERVICE_URI:http://localhost:8103}
+      path: /api/v1/analytics/**
+    
+    budget-service:
+      uri: ${BUDGET_SERVICE_URI:http://localhost:8104}
+      path: /api/v1/budgets/**
+    
+    search-service:
+      uri: ${SEARCH_SERVICE_URI:http://localhost:8105}
+      path: /api/v1/search/**
+    
+    export-service:
+      uri: ${EXPORT_SERVICE_URI:http://localhost:8106}
+      path: /api/v1/exports/**
+    
+    dashboard-aggregation-service:
+      uri: ${DASHBOARD_AGGREGATION_SERVICE_URI:http://localhost:8107}
+      path: /api/v1/dashboard/**
+    
+    reconciliation-service:
+      uri: ${RECONCILIATION_SERVICE_URI:http://localhost:8108}
+      path: /api/v1/reconciliation/**
+    
+    backoffice-service:
+      uri: ${BACKOFFICE_SERVICE_URI:http://localhost:8109}
+      path: /api/v1/backoffice/**
+    
+    multi-language-service:
+      uri: ${MULTI_LANGUAGE_SERVICE_URI:http://localhost:8110}
+      path: /api/v1/i18n/**
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+  
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 30s
+        cancelRunningFuture: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha

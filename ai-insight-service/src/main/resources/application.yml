@@ -1,0 +1,174 @@
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:ai-insight-service}
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/banking_ai_insights}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:1800000}
+      connection-test-query: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TEST_QUERY:SELECT 1}
+      pool-name: ${SPRING_DATASOURCE_HIKARI_POOL_NAME:AiInsightHikariPool}
+  
+  jpa:
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:false}
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  liquibase:
+    enabled: ${SPRING_LIQUIBASE_ENABLED:true}
+    change-log: ${SPRING_LIQUIBASE_CHANGE_LOG:classpath:db/changelog/changelog-master.xml}
+  
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2000ms}
+      lettuce:
+        pool:
+          max-active: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_ACTIVE:8}
+          max-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_IDLE:8}
+          min-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MIN_IDLE:2}
+          max-wait: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_WAIT:-1ms}
+  
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:ai-insight-service-consumer-group}
+      auto-offset-reset: ${SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      enable-auto-commit: ${SPRING_KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:false}
+    producer:
+      key-serializer: ${SPRING_KAFKA_PRODUCER_KEY_SERIALIZER:org.apache.kafka.common.serialization.StringSerializer}
+      value-serializer: ${SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER:org.springframework.kafka.support.serializer.JsonSerializer}
+  
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:15MB}
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${INSIGHT_CACHE_TTL_HOURS:24}h
+
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: ${SERVER_COMPRESSION_ENABLED:true}
+    min-response-size: ${SERVER_COMPRESSION_MIN_RESPONSE_SIZE:1024}
+  servlet:
+    context-path: ${SERVER_SERVLET_CONTEXT_PATH:/api}
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_THREADS_MAX:200}
+      min-spare: ${SERVER_TOMCAT_THREADS_MIN_SPARE:10}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:100}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,metrics,prometheus,info}
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:always}
+  metrics:
+    export:
+      prometheus:
+        enabled: ${MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED:true}
+
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.banking.insight: ${LOGGING_LEVEL_COM_BANKING_INSIGHT:DEBUG}
+  pattern:
+    console: ${LOGGING_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss} - %msg%n}
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-minimum-32-characters-required}
+  expiration-ms: ${JWT_EXPIRATION_MS:900000}
+
+ai-orchestration:
+  service:
+    url: ${AI_ORCHESTRATION_SERVICE_URL:http://localhost:8080/v1/ai}
+    timeout: ${AI_ORCHESTRATION_SERVICE_TIMEOUT:60000}
+
+transaction:
+  service:
+    url: ${TRANSACTION_SERVICE_URL:http://localhost:8080/v1/transactions}
+    timeout: ${TRANSACTION_SERVICE_TIMEOUT:30000}
+
+account:
+  service:
+    url: ${ACCOUNT_SERVICE_URL:http://localhost:8080/v1/accounts}
+    timeout: ${ACCOUNT_SERVICE_TIMEOUT:30000}
+
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://localhost:8080/v1/users}
+    timeout: ${USER_SERVICE_TIMEOUT:30000}
+
+insight:
+  generation:
+    enabled: ${INSIGHT_GENERATION_ENABLED:true}
+    min-transactions: ${INSIGHT_MIN_TRANSACTIONS:10}
+    max-transactions-analyzed: ${INSIGHT_MAX_TRANSACTIONS_ANALYZED:1000}
+    batch-size: ${INSIGHT_GENERATION_BATCH_SIZE:100}
+  
+  anomaly:
+    detection:
+      enabled: ${ANOMALY_DETECTION_ENABLED:true}
+      threshold: ${ANOMALY_DETECTION_THRESHOLD:2.0}
+      min-samples: ${ANOMALY_DETECTION_MIN_SAMPLES:30}
+  
+  recommendation:
+    enabled: ${RECOMMENDATION_ENABLED:true}
+    max-results: ${RECOMMENDATION_MAX_RESULTS:10}
+    confidence-threshold: ${RECOMMENDATION_CONFIDENCE_THRESHOLD:0.7}
+  
+  pattern:
+    analysis:
+      enabled: ${PATTERN_ANALYSIS_ENABLED:true}
+      min-occurrences: ${PATTERN_DETECTION_MIN_OCCURRENCES:3}
+      time-window-days: ${PATTERN_DETECTION_TIME_WINDOW_DAYS:90}
+  
+  forecast:
+    enabled: ${FORECAST_ENABLED:true}
+    horizon-days: ${FORECAST_HORIZON_DAYS:30}
+    confidence-level: ${FORECAST_CONFIDENCE_LEVEL:0.95}
+
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:60}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Requested-With,Idempotency-Key}
+  max-age: ${CORS_MAX_AGE:3600}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiOrchestration:
+        failure-rate-threshold: ${RESILIENCE4J_CIRCUITBREAKER_INSTANCES_AI_ORCHESTRATION_FAILURE_RATE_THRESHOLD:50}
+        wait-duration-in-open-state: ${RESILIENCE4J_CIRCUITBREAKER_INSTANCES_AI_ORCHESTRATION_WAIT_DURATION_IN_OPEN_STATE:30s}
+        permitted-number-of-calls-in-half-open-state: ${RESILIENCE4J_CIRCUITBREAKER_INSTANCES_AI_ORCHESTRATION_PERMITTED_NUMBER_OF_CALLS_IN_HALF_OPEN_STATE:5}

@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-service:5432/banking_ai_insights?autoReconnect=true&useSSL=true&characterEncoding=utf8
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+  
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.banking.insight: INFO
+
+insight:
+  generation:
+    enabled: true
+    max-transactions-analyzed: 5000
+  anomaly:
+    detection:
+      enabled: true
+  recommendation:
+    enabled: true
