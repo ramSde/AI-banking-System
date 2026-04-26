@@ -1,29 +1,24 @@
 package com.banking.rag.dto;
 
-import com.banking.rag.domain.RagSource;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.*;
 
 import java.util.List;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class RerankRequest {
+public record RerankRequest(
+        @NotBlank(message = "Query text is required")
+        String queryText,
 
-    @NotBlank(message = "Query text is required")
-    @Size(min = 3, max = 5000, message = "Query text must be between 3 and 5000 characters")
-    private String queryText;
+        @NotEmpty(message = "Documents list cannot be empty")
+        @Size(min = 1, max = 100, message = "Documents list must contain between 1 and 100 items")
+        List<DocumentCandidate> documents,
 
-    @NotEmpty(message = "Sources list cannot be empty")
-    private List<RagSource> sources;
-
-    @Builder.Default
-    private Integer topN = 5;
+        @Min(value = 1, message = "Top N must be at least 1")
+        @Max(value = 20, message = "Top N cannot exceed 20")
+        Integer topN
+) {
+    public RerankRequest {
+        if (topN == null) {
+            topN = 5;
+        }
+    }
 }

@@ -16,35 +16,29 @@ import java.util.UUID;
 @Repository
 public interface RagQueryRepository extends JpaRepository<RagQuery, UUID> {
 
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.id = :id AND rq.deletedAt IS NULL")
-    Optional<RagQuery> findByIdAndNotDeleted(@Param("id") UUID id);
+    Optional<RagQuery> findByIdAndDeletedAtIsNull(UUID id);
 
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.userId = :userId AND rq.deletedAt IS NULL ORDER BY rq.createdAt DESC")
-    Page<RagQuery> findByUserIdAndNotDeleted(@Param("userId") UUID userId, Pageable pageable);
+    Page<RagQuery> findByUserIdAndDeletedAtIsNull(UUID userId, Pageable pageable);
 
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.status = :status AND rq.deletedAt IS NULL ORDER BY rq.createdAt DESC")
-    Page<RagQuery> findByStatusAndNotDeleted(@Param("status") String status, Pageable pageable);
+    Page<RagQuery> findBySessionIdAndDeletedAtIsNull(UUID sessionId, Pageable pageable);
 
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.traceId = :traceId AND rq.deletedAt IS NULL")
-    Optional<RagQuery> findByTraceIdAndNotDeleted(@Param("traceId") String traceId);
-
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.sessionId = :sessionId AND rq.deletedAt IS NULL ORDER BY rq.createdAt DESC")
-    List<RagQuery> findBySessionIdAndNotDeleted(@Param("sessionId") String sessionId);
-
-    @Query("SELECT rq FROM RagQuery rq WHERE rq.userId = :userId AND rq.createdAt BETWEEN :startDate AND :endDate AND rq.deletedAt IS NULL ORDER BY rq.createdAt DESC")
-    Page<RagQuery> findByUserIdAndDateRangeAndNotDeleted(
+    @Query("SELECT rq FROM RagQuery rq WHERE rq.userId = :userId AND rq.deletedAt IS NULL " +
+           "AND rq.createdAt BETWEEN :startDate AND :endDate ORDER BY rq.createdAt DESC")
+    List<RagQuery> findByUserIdAndDateRange(
             @Param("userId") UUID userId,
             @Param("startDate") Instant startDate,
-            @Param("endDate") Instant endDate,
-            Pageable pageable
+            @Param("endDate") Instant endDate
     );
 
-    @Query("SELECT COUNT(rq) FROM RagQuery rq WHERE rq.userId = :userId AND rq.status = 'COMPLETED' AND rq.deletedAt IS NULL")
-    Long countCompletedQueriesByUserId(@Param("userId") UUID userId);
+    @Query("SELECT rq FROM RagQuery rq WHERE rq.traceId = :traceId AND rq.deletedAt IS NULL")
+    Optional<RagQuery> findByTraceId(@Param("traceId") String traceId);
 
-    @Query("SELECT AVG(rq.totalLatencyMs) FROM RagQuery rq WHERE rq.userId = :userId AND rq.status = 'COMPLETED' AND rq.deletedAt IS NULL")
+    @Query("SELECT COUNT(rq) FROM RagQuery rq WHERE rq.userId = :userId AND rq.cacheHit = true AND rq.deletedAt IS NULL")
+    Long countCacheHitsByUserId(@Param("userId") UUID userId);
+
+    @Query("SELECT AVG(rq.totalLatencyMs) FROM RagQuery rq WHERE rq.userId = :userId AND rq.deletedAt IS NULL")
     Double getAverageLatencyByUserId(@Param("userId") UUID userId);
 
     @Query("SELECT rq FROM RagQuery rq WHERE rq.deletedAt IS NULL ORDER BY rq.createdAt DESC")
-    Page<RagQuery> findAllNotDeleted(Pageable pageable);
+    Page<RagQuery> findAllActive(Pageable pageable);
 }

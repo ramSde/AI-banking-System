@@ -1,11 +1,11 @@
-server:
-  port: 8013
-
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/rag_pipeline_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
     username: admin
     password: admin
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
   
   jpa:
     show-sql: true
@@ -21,38 +21,22 @@ spring:
   
   kafka:
     bootstrap-servers: localhost:9092
+  
+  ai:
+    vectorstore:
+      chroma:
+        client:
+          host: localhost
+          port: 8000
 
-spring.ai:
-  openai:
-    api-key: ${OPENAI_API_KEY:sk-test-key}
-  
-  vectorstore:
-    chroma:
-      client:
-        host: localhost
-        port: 8000
-
-rag:
-  retrieval:
-    top-k: 10
-    similarity-threshold: 0.7
-  
-  reranking:
-    enabled: true
-    top-n: 5
-  
-  context:
-    max-tokens: 4000
-  
-  cache:
-    enabled: true
-    ttl-seconds: 3600
-    similarity-threshold: 0.95
+server:
+  port: 8093
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 5
 
 management:
-  endpoint:
-    health:
-      show-details: always
   tracing:
     sampling:
       probability: 1.0
@@ -65,3 +49,26 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+rag:
+  retrieval:
+    top-k: 10
+    similarity-threshold: 0.7
+  reranking:
+    enabled: true
+    top-n: 5
+  context:
+    max-tokens: 4000
+  cache:
+    enabled: true
+    ttl-seconds: 3600
+    similarity-threshold: 0.95
+
+security:
+  allowed-origins: http://localhost:3000,http://localhost:3001
+  rate-limit:
+    enabled: false

@@ -18,9 +18,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "rag_contexts")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @EntityListeners(AuditingEntityListener.class)
 public class RagContext {
 
@@ -34,11 +34,11 @@ public class RagContext {
     @Column(name = "assembled_context", nullable = false, columnDefinition = "TEXT")
     private String assembledContext;
 
-    @Column(name = "token_count", nullable = false)
-    private Integer tokenCount;
+    @Column(name = "total_tokens", nullable = false)
+    private Integer totalTokens;
 
-    @Column(name = "source_count", nullable = false)
-    private Integer sourceCount;
+    @Column(name = "document_count", nullable = false)
+    private Integer documentCount;
 
     @Type(JsonBinaryType.class)
     @Column(name = "sources", nullable = false, columnDefinition = "jsonb")

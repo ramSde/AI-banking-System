@@ -1,21 +1,16 @@
-server:
-  port: 8013
-
 spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true&useSSL=true&sslmode=require&characterEncoding=utf8
     hikari:
-      maximum-pool-size: 50
-      minimum-idle: 15
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      maximum-pool-size: 20
+      minimum-idle: 5
+      leak-detection-threshold: 60000
   
   jpa:
     show-sql: false
     properties:
       hibernate:
-        format_sql: false
+        generate_statistics: false
   
   data:
     redis:
@@ -23,58 +18,30 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
       ssl: true
-      timeout: 5000
   
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     properties:
-      security.protocol: SASL_SSL
-      sasl.mechanism: PLAIN
-      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
-      ssl.endpoint.identification.algorithm: https
+      security.protocol: SSL
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD}
+  
+  ai:
+    vectorstore:
+      chroma:
+        client:
+          host: ${CHROMA_HOST}
+          port: ${CHROMA_PORT}
 
-spring.ai:
-  openai:
-    api-key: ${OPENAI_API_KEY}
-    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
-  
-  vectorstore:
-    chroma:
-      client:
-        host: ${CHROMADB_HOST}
-        port: ${CHROMADB_PORT}
-
-rag:
-  retrieval:
-    top-k: 10
-    similarity-threshold: 0.8
-  
-  reranking:
-    enabled: true
-    top-n: 5
-  
-  context:
-    max-tokens: 4000
-  
-  cache:
-    enabled: true
-    ttl-seconds: 7200
-    similarity-threshold: 0.95
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      chromadb:
-        failure-rate-threshold: 30
-        slow-call-duration-threshold: 3s
-      openai:
-        failure-rate-threshold: 30
-        slow-call-duration-threshold: 8s
+server:
+  port: 8093
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+  shutdown: graceful
 
 management:
-  endpoint:
-    health:
-      show-details: never
   tracing:
     sampling:
       probability: 0.1
@@ -83,6 +50,31 @@ logging:
   level:
     root: WARN
     com.banking.rag: INFO
-    org.springframework.web: ERROR
-    org.springframework.security: ERROR
-    org.hibernate.SQL: ERROR
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+rag:
+  retrieval:
+    top-k: 10
+    similarity-threshold: 0.8
+  reranking:
+    enabled: true
+    top-n: 5
+  context:
+    max-tokens: 4000
+  cache:
+    enabled: true
+    ttl-seconds: 7200
+    similarity-threshold: 0.95
+    max-entries: 50000
+
+security:
+  allowed-origins: ${ALLOWED_ORIGINS}
+  rate-limit:
+    enabled: true
+    requests-per-minute: 60

@@ -21,7 +21,7 @@ RUN addgroup -g 1000 appgroup && \
 WORKDIR /app
 
 # Copy JAR from builder stage
-COPY --from=builder /app/target/rag-pipeline-service-1.0.0.jar app.jar
+COPY --from=builder /app/target/*.jar app.jar
 
 # Change ownership
 RUN chown -R appuser:appgroup /app
@@ -30,14 +30,14 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Expose port
-EXPOSE 8013
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8013/api/actuator/health || exit 1
+EXPOSE 8093
 
 # JVM options
 ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Djava.security.egd=file:/dev/./urandom"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8093/api/actuator/health || exit 1
 
 # Run application
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

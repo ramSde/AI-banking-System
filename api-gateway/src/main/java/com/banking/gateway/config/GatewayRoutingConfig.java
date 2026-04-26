@@ -8,20 +8,33 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Spring Cloud Gateway routing configuration.
+ * Gateway Routing Configuration
  * 
- * Defines all routes to downstream microservices with:
- * - Path-based routing predicates
- * - Circuit breaker filters for fault tolerance
- * - Retry policies with exponential backoff
- * - Request/response transformation filters
+ * Defines all routes from the API Gateway to downstream microservices.
+ * Each route maps a path pattern to a target service URI.
  * 
- * Routes are organized by business domain and include fallback handling
- * for service unavailability scenarios.
+ * Routing Strategy:
+ * - All routes use path-based routing (/api/v1/{service}/**)
+ * - Routes are loaded from application.yml via GatewayProperties
+ * - Each route strips the /api prefix before forwarding to the service
+ * - Circuit breaker and retry filters are applied via default-filters in application.yml
+ * 
+ * Route Configuration:
+ * - Identity & Security services (ports 8081-8084)
+ * - User Context services (ports 8085-8086)
+ * - Core Banking services (ports 8087-8088)
+ * - Safety services (ports 8089-8090)
+ * - Communication services (port 8091)
+ * - AI Infrastructure services (ports 8092-8093)
+ * - AI Intelligence services (ports 8094-8095)
+ * - Multimodal Interaction services (ports 8096-8099)
+ * - User Experience services (ports 8100-8101)
+ * - Financial Intelligence services (ports 8102-8107)
+ * - Bank-Grade Systems services (ports 8108-8109)
+ * - Additional services (port 8110)
  * 
  * @author Banking Platform Team
  * @version 1.0.0
- * @since 2024-01-01
  */
 @Slf4j
 @Configuration
@@ -30,203 +43,31 @@ public class GatewayRoutingConfig {
 
     private final GatewayProperties gatewayProperties;
 
-    /**
-     * Configures all routes to downstream banking services.
-     * 
-     * Each route includes:
-     * - Path predicate for request matching
-     * - Circuit breaker with fallback URI
-     * - Retry filter with exponential backoff
-     * - Request ID injection for tracing
-     * 
-     * @param builder RouteLocatorBuilder for fluent route configuration
-     * @return Configured RouteLocator with all banking service routes
-     */
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
-        log.info("Configuring API Gateway routes for {} services", 12);
-        
-        return builder.routes()
-            // ── IDENTITY & AUTHENTICATION ROUTES ────────────────────────────
-            .route("identity-service", r -> r
-                .path("/api/v1/auth/**", "/api/v1/identity/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("identity-service-cb")
-                        .setFallbackUri("forward:/fallback/identity"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getIdentityServiceUrl()))
+        log.info("Configuring gateway routes for {} services", gatewayProperties.getRoutes().size());
 
-            // ── USER MANAGEMENT ROUTES ──────────────────────────────────────
-            .route("user-service", r -> r
-                .path("/api/v1/users/**", "/api/v1/profiles/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("user-service-cb")
-                        .setFallbackUri("forward:/fallback/user"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getUserServiceUrl()))
+        RouteLocatorBuilder.Builder routesBuilder = builder.routes();
 
-            // ── ACCOUNT MANAGEMENT ROUTES ───────────────────────────────────
-            .route("account-service", r -> r
-                .path("/api/v1/accounts/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("account-service-cb")
-                        .setFallbackUri("forward:/fallback/account"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getAccountServiceUrl()))
+        gatewayProperties.getRoutes().forEach((serviceName, routeProps) -> {
+            String routeId = serviceName + "-route";
+            String uri = routeProps.getUri();
+            String path = routeProps.getPath();
 
-            // ── TRANSACTION ROUTES ──────────────────────────────────────────
-            .route("transaction-service", r -> r
-                .path("/api/v1/transactions/**", "/api/v1/transfers/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("transaction-service-cb")
-                        .setFallbackUri("forward:/fallback/transaction"))
-                    .retry(config -> config
-                        .setRetries(2)  // Fewer retries for financial operations
-                        .setBackoff(java.time.Duration.ofMillis(200), 
-                                   java.time.Duration.ofMillis(2000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getTransactionServiceUrl()))
+            log.debug("Registering route: {} -> {} (path: {})", routeId, uri, path);
 
-            // ── FRAUD DETECTION ROUTES ──────────────────────────────────────
-            .route("fraud-service", r -> r
-                .path("/api/v1/fraud/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("fraud-service-cb")
-                        .setFallbackUri("forward:/fallback/fraud"))
-                    .retry(config -> config
-                        .setRetries(2)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(500), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getFraudServiceUrl()))
+            routesBuilder.route(routeId, r -> r
+                    .path(path)
+                    .filters(f -> f
+                            .stripPrefix(0)
+                            .addRequestHeader("X-Gateway-Service", serviceName)
+                            .addRequestHeader("X-Forwarded-Proto", "https")
+                    )
+                    .uri(uri)
+            );
+        });
 
-            // ── AUDIT ROUTES ────────────────────────────────────────────────
-            .route("audit-service", r -> r
-                .path("/api/v1/audit/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("audit-service-cb")
-                        .setFallbackUri("forward:/fallback/audit"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getAuditServiceUrl()))
-
-            // ── NOTIFICATION ROUTES ─────────────────────────────────────────
-            .route("notification-service", r -> r
-                .path("/api/v1/notifications/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("notification-service-cb")
-                        .setFallbackUri("forward:/fallback/notification"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getNotificationServiceUrl()))
-
-            // ── CHAT ROUTES ─────────────────────────────────────────────────
-            .route("chat-service", r -> r
-                .path("/api/v1/chat/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("chat-service-cb")
-                        .setFallbackUri("forward:/fallback/chat"))
-                    .retry(config -> config
-                        .setRetries(2)
-                        .setBackoff(java.time.Duration.ofMillis(200), 
-                                   java.time.Duration.ofMillis(2000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getChatServiceUrl()))
-
-            // ── AI ORCHESTRATION ROUTES ─────────────────────────────────────
-            .route("ai-orchestration-service", r -> r
-                .path("/api/v1/ai/**", "/api/v1/insights/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("ai-orchestration-service-cb")
-                        .setFallbackUri("forward:/fallback/ai"))
-                    .retry(config -> config
-                        .setRetries(2)
-                        .setBackoff(java.time.Duration.ofMillis(500), 
-                                   java.time.Duration.ofMillis(5000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getAiOrchestrationServiceUrl()))
-
-            // ── DOCUMENT INGESTION ROUTES ───────────────────────────────────
-            .route("document-ingestion-service", r -> r
-                .path("/api/v1/documents/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("document-ingestion-service-cb")
-                        .setFallbackUri("forward:/fallback/document"))
-                    .retry(config -> config
-                        .setRetries(2)
-                        .setBackoff(java.time.Duration.ofMillis(200), 
-                                   java.time.Duration.ofMillis(2000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getDocumentIngestionServiceUrl()))
-
-            // ── ANALYTICS ROUTES ────────────────────────────────────────────
-            .route("analytics-service", r -> r
-                .path("/api/v1/analytics/**", "/api/v1/reports/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("analytics-service-cb")
-                        .setFallbackUri("forward:/fallback/analytics"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getAnalyticsServiceUrl()))
-
-            // ── STATEMENT ROUTES ────────────────────────────────────────────
-            .route("statement-service", r -> r
-                .path("/api/v1/statements/**")
-                .filters(f -> f
-                    .circuitBreaker(config -> config
-                        .setName("statement-service-cb")
-                        .setFallbackUri("forward:/fallback/statement"))
-                    .retry(config -> config
-                        .setRetries(3)
-                        .setBackoff(java.time.Duration.ofMillis(100), 
-                                   java.time.Duration.ofMillis(1000), 2, false))
-                    .addRequestHeader("X-Gateway-Source", "api-gateway")
-                    .addRequestHeader("X-Request-ID", "#{T(java.util.UUID).randomUUID().toString()}"))
-                .uri(gatewayProperties.getServices().getStatementServiceUrl()))
-
-            .build();
+        log.info("Gateway routing configuration completed successfully");
+        return routesBuilder.build();
     }
 }

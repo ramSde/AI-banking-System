@@ -1,252 +1,280 @@
 # API Gateway
 
-Production-grade API Gateway for the Banking Platform microservices ecosystem. Built on Spring Cloud Gateway with reactive architecture, providing centralized authentication, rate limiting, request routing, and comprehensive observability.
+## Overview
 
-## Purpose & Bounded Context
+The API Gateway is the single entry point for all client requests to the Banking Platform. It provides centralized routing, authentication, rate limiting, and observability for all 30+ microservices.
 
-The API Gateway serves as the single entry point for all client requests, handling:
-- JWT-based authentication and authorization
-- Redis-based rate limiting with sliding window algorithm
-- Request routing to 12+ downstream banking services
-- Circuit breaker patterns for fault tolerance
-- Comprehensive request/response logging with PII masking
-- CORS handling for web clients
+**Bounded Context**: Infrastructure / Gateway Layer
 
-**Bounded Context:** Gateway & Routing Domain - responsible for request ingress, security enforcement, and traffic management.
+**Technology Stack**:
+- Spring Cloud Gateway (reactive, non-blocking)
+- Redis (rate limiting, caching)
+- JWT RS256 (authentication)
+- Resilience4j (circuit breaker, retry)
+- Micrometer + OpenTelemetry (observability)
+
+## Features
+
+- **Centralized Routing**: Routes requests to 30+ downstream microservices
+- **JWT Authentication**: RS256 signature verification with public key
+- **Rate Limiting**: Sliding window algorithm (per-user and per-IP)
+- **Request Logging**: Structured JSON logs with distributed tracing
+- **Circuit Breaker**: Automatic failover and retry mechanisms
+- **CORS Configuration**: Configurable allowed origins per environment
+- **Health Checks**: Kubernetes-ready liveness and readiness probes
+- **Observability**: Prometheus metrics, OpenTelemetry tracing
 
 ## Prerequisites
 
-- Java 25
-- Docker & Docker Compose
+- Java 17
 - Maven 3.9+
-- Redis (for rate limiting)
-- Access to downstream banking services
+- Docker & Docker Compose
+- Redis 7+
+- Access to Identity Service (for JWT public key)
 
 ## Local Setup
 
 ### 1. Environment Configuration
 
-Copy the environment template and customize:
+Copy the example environment file:
 
 ```bash
 cp .env.example .env
-# Edit .env with your local configuration
 ```
 
-### 2. Generate JWT Keys (Development)
+Edit `.env` and configure:
+- Redis connection details
+- JWT public key (obtain from Identity Service)
+- Service URIs for all downstream microservices
+- CORS allowed origins
+
+### 2. Start Infrastructure
+
+Start Redis using Docker Compose:
 
 ```bash
-# Generate RSA key pair for JWT validation
-openssl genrsa -out private.pem 2048
-openssl rsa -in private.pem -pubout -out public.pem
-
-# Copy public key content to .env JWT_PUBLIC_KEY variable
-```
-
-### 3. Start Dependencies
-
-```bash
-# Start Redis and other dependencies
 docker-compose up -d redis
 ```
 
-### 4. Run the Application
+### 3. Build and Run
+
+Build the application:
 
 ```bash
-# Using Maven
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-
-# Or using JAR
-mvn clean package -DskipTests
-java -jar target/api-gateway-*.jar --spring.profiles.active=dev
+mvn clean package
 ```
 
-### 5. Verify Health
+Run the application:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+Or run the JAR directly:
+
+```bash
+java -jar target/api-gateway.jar --spring.profiles.active=dev
+```
+
+The gateway will start on `http://localhost:8080`
+
+### 4. Verify Health
+
+Check health status:
 
 ```bash
 curl http://localhost:8080/actuator/health
 ```
 
-## API Summary
+Expected response:
+```json
+{
+  "status": "UP",
+  "components": {
+    "redis": {
+      "status": "UP",
+      "details": {
+        "redis": "available"
+      }
+    }
+  }
+}
+```
 
-| Method | Path | Auth Required | Role | Description |
-|--------|------|---------------|------|-------------|
-| GET | `/actuator/health` | No | - | Health check endpoint |
-| GET | `/actuator/metrics` | No | - | Prometheus metrics |
-| GET | `/actuator/prometheus` | No | - | Prometheus scraping endpoint |
-| ALL | `/api/v1/auth/**` | No | - | Identity service routes (public) |
-| ALL | `/api/v1/users/**` | Yes | USER | User service routes |
-| ALL | `/api/v1/accounts/**` | Yes | USER | Account service routes |
-| ALL | `/api/v1/transactions/**` | Yes | USER | Transaction service routes |
-| ALL | `/api/v1/fraud/**` | Yes | ADMIN | Fraud detection routes |
-| ALL | `/api/v1/audit/**` | Yes | ADMIN | Audit service routes |
-| ALL | `/api/v1/notifications/**` | Yes | USER | Notification service routes |
-| ALL | `/api/v1/chat/**` | Yes | USER | Chat service routes |
-| ALL | `/api/v1/ai/**` | Yes | USER | AI orchestration routes |
-| ALL | `/api/v1/documents/**` | Yes | USER | Document ingestion routes |
-| ALL | `/api/v1/analytics/**` | Yes | USER | Analytics service routes |
-| ALL | `/api/v1/statements/**` | Yes | USER | Statement service routes |
+## API Endpoints
+
+| Method | Path | Auth Required | Description |
+|--------|------|---------------|-------------|
+| GET | `/actuator/health` | No | Health check endpoint |
+| GET | `/actuator/health/liveness` | No | Kubernetes liveness probe |
+| GET | `/actuator/health/readiness` | No | Kubernetes readiness probe |
+| GET | `/actuator/metrics` | No | Prometheus metrics |
+| GET | `/actuator/prometheus` | No | Prometheus scrape endpoint |
+| POST | `/api/v1/auth/**` | No | Authentication endpoints (proxied to Identity Service) |
+| ALL | `/api/v1/**` | Yes | All other endpoints require JWT authentication |
 
 ## Environment Variables
 
 | Variable | Default | Description | Required |
 |----------|---------|-------------|----------|
-| `SPRING_PROFILES_ACTIVE` | `dev` | Active Spring profile | Yes |
-| `SERVER_PORT` | `8080` | HTTP server port | No |
-| `REDIS_HOST` | `localhost` | Redis server hostname | Yes |
-| `REDIS_PORT` | `6379` | Redis server port | No |
-| `REDIS_PASSWORD` | `` | Redis authentication password | No |
-| `JWT_PUBLIC_KEY` | - | RSA public key for JWT validation (PEM format) | Yes |
-| `JWT_ISSUER` | `banking-platform-dev` | Expected JWT issuer | Yes |
-| `JWT_AUDIENCE` | `banking-api-dev` | Expected JWT audience | Yes |
-| `RATE_LIMIT_PER_USER` | `1000` | Requests per minute per user (dev) | No |
-| `RATE_LIMIT_PER_IP` | `2000` | Requests per minute per IP (dev) | No |
-| `CORS_ALLOWED_ORIGIN_1` | `http://localhost:3000` | Allowed CORS origin | Yes |
-| `IDENTITY_SERVICE_URL` | `http://localhost:8082` | Identity service URL | Yes |
-| `USER_SERVICE_URL` | `http://localhost:8083` | User service URL | Yes |
-| `ACCOUNT_SERVICE_URL` | `http://localhost:8084` | Account service URL | Yes |
-| `TRANSACTION_SERVICE_URL` | `http://localhost:8085` | Transaction service URL | Yes |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` | OpenTelemetry endpoint | No |
+| `SERVER_PORT` | 8080 | Server port | No |
+| `SPRING_PROFILES_ACTIVE` | dev | Active Spring profile (dev/staging/prod) | Yes |
+| `REDIS_HOST` | localhost | Redis host | Yes |
+| `REDIS_PORT` | 6379 | Redis port | Yes |
+| `REDIS_PASSWORD` | | Redis password | No |
+| `JWT_PUBLIC_KEY` | | JWT RS256 public key (PEM format) | Yes |
+| `JWT_ISSUER` | banking-platform | Expected JWT issuer | Yes |
+| `JWT_AUDIENCE` | banking-api | Expected JWT audience | Yes |
+| `RATE_LIMIT_ENABLED` | true | Enable rate limiting | No |
+| `RATE_LIMIT_PER_USER` | 100 | Requests per minute per user | No |
+| `RATE_LIMIT_PER_IP` | 200 | Requests per minute per IP | No |
+| `CORS_ALLOWED_ORIGINS` | http://localhost:3000 | Comma-separated allowed origins | Yes |
+| `OTLP_ENDPOINT` | http://localhost:4317 | OpenTelemetry collector endpoint | No |
 
 ## Running Tests
 
+Run all tests:
+
 ```bash
-# Unit tests only
 mvn test
+```
 
-# Integration tests only
-mvn failsafe:integration-test
+Run integration tests only:
 
-# All tests
-mvn verify
+```bash
+mvn test -Dtest=*IntegrationTest
+```
 
-# With coverage report
-mvn clean verify jacoco:report
+Run unit tests only:
+
+```bash
+mvn test -Dtest=*Test -Dtest=!*IntegrationTest
 ```
 
 ## Architecture Decisions
 
-### 1. Reactive Architecture
-- **Decision:** Use Spring Cloud Gateway (WebFlux) instead of Zuul
-- **Reasoning:** Better performance, non-blocking I/O, native Spring Cloud integration
-- **Tradeoff:** Steeper learning curve, reactive programming complexity
+### 1. Spring Cloud Gateway (Reactive)
 
-### 2. Redis Rate Limiting
-- **Decision:** Implement sliding window rate limiting with Redis
-- **Reasoning:** Distributed rate limiting, high performance, atomic operations
-- **Tradeoff:** Redis dependency, network latency for each request
+**Decision**: Use Spring Cloud Gateway instead of Zuul or traditional servlet-based gateway.
 
-### 3. JWT Validation at Gateway
-- **Decision:** Validate JWT tokens at gateway level
-- **Reasoning:** Centralized security, reduced load on downstream services
-- **Tradeoff:** Single point of failure, requires public key distribution
+**Reasoning**:
+- Non-blocking, reactive architecture for better throughput
+- Native Spring Boot 3.x support
+- Built-in circuit breaker and retry mechanisms
+- Better performance under high load
 
-### 4. Circuit Breaker Pattern
-- **Decision:** Use Resilience4j circuit breakers for all downstream services
-- **Reasoning:** Fault tolerance, prevent cascade failures, graceful degradation
-- **Tradeoff:** Additional complexity, configuration overhead
+**Tradeoffs**:
+- Reactive programming model has steeper learning curve
+- Debugging reactive streams can be more complex
 
-### 5. Structured JSON Logging
-- **Decision:** Use structured JSON logging in production
-- **Reasoning:** Better log aggregation, searchability, monitoring integration
-- **Tradeoff:** Larger log size, requires log parsing infrastructure
+### 2. Redis Sliding Window Rate Limiting
+
+**Decision**: Implement sliding window algorithm using Redis.
+
+**Reasoning**:
+- More accurate than fixed window (no burst at window boundaries)
+- Distributed rate limiting across multiple gateway instances
+- Low latency (< 5ms per check)
+
+**Tradeoffs**:
+- Requires Redis availability (added dependency)
+- Slightly more complex than fixed window
+
+### 3. JWT RS256 (Public Key Verification)
+
+**Decision**: Use RS256 instead of HS256 for JWT verification.
+
+**Reasoning**:
+- Gateway only needs public key (no shared secret)
+- Identity Service can rotate private key without updating gateway
+- Better security (asymmetric cryptography)
+
+**Tradeoffs**:
+- Slightly slower verification (< 1ms difference)
+- Requires public key distribution mechanism
+
+### 4. Global Filters vs Route-Specific Filters
+
+**Decision**: Use global filters for authentication, rate limiting, and logging.
+
+**Reasoning**:
+- Consistent behavior across all routes
+- Simpler configuration
+- Easier to maintain
+
+**Tradeoffs**:
+- Less flexibility for route-specific customization
+- All routes share same filter chain
 
 ## Known Limitations
 
-1. **JWT Key Rotation:** Manual public key updates required (no automatic rotation)
-2. **Rate Limiting Precision:** Redis-based sliding window has minor timing precision issues
-3. **Circuit Breaker State:** Circuit breaker state not shared across gateway instances
-4. **CORS Preflight:** Complex CORS scenarios may require additional configuration
-5. **Request Size:** Large request bodies (>10MB) may cause memory pressure
+1. **Rate Limiting Accuracy**: Sliding window algorithm is approximate (not exact) due to Redis key expiration
+2. **JWT Public Key Rotation**: Requires gateway restart to load new public key (future: implement hot reload)
+3. **Circuit Breaker State**: Not shared across gateway instances (each instance maintains own state)
+4. **Request Body Logging**: Disabled for performance (only headers and metadata logged)
 
 ## Planned Improvements
 
-1. **Automatic JWT Key Rotation:** Integration with HashiCorp Vault or JWKS endpoint
-2. **Advanced Rate Limiting:** Token bucket algorithm, burst handling
-3. **Request Caching:** Intelligent response caching for read-heavy endpoints
-4. **Request Transformation:** Request/response transformation capabilities
-5. **Advanced Monitoring:** Custom business metrics, SLA monitoring
-6. **Load Balancing:** Weighted routing, canary deployments
-7. **API Versioning:** Automatic API version routing and deprecation handling
+1. **Dynamic Routing**: Load routes from configuration service instead of static YAML
+2. **JWT Public Key Hot Reload**: Fetch public key from Identity Service on startup and periodically refresh
+3. **Advanced Rate Limiting**: Support for different limits per endpoint or user tier
+4. **Request/Response Transformation**: Add filters for request/response body transformation
+5. **API Versioning**: Support for multiple API versions with automatic routing
 
-## Monitoring & Observability
+## Deployment
 
-### Metrics (Prometheus)
-- Request count by endpoint and status code
-- Request duration histograms
-- Rate limit violations
-- Circuit breaker state changes
-- Redis connection pool metrics
+### Docker
 
-### Health Checks
-- `/actuator/health/liveness` - Kubernetes liveness probe
-- `/actuator/health/readiness` - Kubernetes readiness probe
-- Custom Redis connectivity check
-
-### Distributed Tracing
-- OpenTelemetry integration
-- Trace ID propagation to downstream services
-- Jaeger/Tempo export support
-
-### Logging
-- Structured JSON logs in production
-- Request/response correlation IDs
-- PII masking for sensitive data
-- Configurable log levels per environment
-
-## Security Considerations
-
-1. **JWT Validation:** RSA-256 signature verification with public key
-2. **Rate Limiting:** Per-user and per-IP limits to prevent abuse
-3. **CORS Policy:** Strict origin whitelisting in production
-4. **Security Headers:** XSS protection, frame options, HSTS
-5. **PII Masking:** Automatic masking in logs and error responses
-6. **Input Validation:** Request size limits, header validation
-7. **Error Handling:** No sensitive information in error responses
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Redis Connection Failed**
-   ```bash
-   # Check Redis connectivity
-   redis-cli -h $REDIS_HOST -p $REDIS_PORT ping
-   ```
-
-2. **JWT Validation Failed**
-   ```bash
-   # Verify public key format
-   openssl rsa -pubin -in public.pem -text -noout
-   ```
-
-3. **Rate Limit Not Working**
-   ```bash
-   # Check Redis keys
-   redis-cli keys "rate_limit:*"
-   ```
-
-4. **Circuit Breaker Open**
-   ```bash
-   # Check actuator metrics
-   curl http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.state
-   ```
-
-### Debug Mode
+Build Docker image:
 
 ```bash
-# Enable debug logging
-export LOG_LEVEL_GATEWAY=DEBUG
-export LOG_LEVEL_SCG=DEBUG
+docker build -t api-gateway:latest .
 ```
 
-### Performance Tuning
+Run Docker container:
 
 ```bash
-# JVM tuning for high load
-export JAVA_OPTS="-Xms1g -Xmx2g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
-
-# Netty tuning
-export SERVER_NETTY_CONNECTION_TIMEOUT_MS=5000
-export GATEWAY_HTTP_POOL_MAX_CONNECTIONS=1000
+docker run -p 8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e REDIS_HOST=redis \
+  -e JWT_PUBLIC_KEY="$(cat public-key.pem)" \
+  api-gateway:latest
 ```
+
+### Kubernetes/OpenShift
+
+Apply Kubernetes manifests:
+
+```bash
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/hpa.yaml
+```
+
+For OpenShift, also apply the Route:
+
+```bash
+oc apply -f k8s/route.yaml
+```
+
+### Observability
+
+**Prometheus Metrics**: Available at `/actuator/prometheus`
+
+**Key Metrics**:
+- `http_server_requests_seconds`: Request latency histogram
+- `gateway_requests_total`: Total requests counter
+- `gateway_rate_limit_exceeded_total`: Rate limit violations
+- `redis_commands_total`: Redis command counter
+
+**Distributed Tracing**: Traces exported to OTLP endpoint (Jaeger/Tempo)
+
+**Logs**: Structured JSON logs with traceId, spanId, userId fields
+
+## Support
+
+For issues or questions, contact the Banking Platform Team.
+
+**Version**: 1.0.0  
+**Last Updated**: 2024-01-01

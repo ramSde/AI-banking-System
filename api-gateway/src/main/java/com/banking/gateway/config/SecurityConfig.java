@@ -4,31 +4,36 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.reactive.CorsConfigurationSource;
-import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.server.header.XFrameOptionsServerHttpHeadersWriter;
 
 /**
- * Security configuration for Spring Cloud Gateway.
+ * Security Configuration for API Gateway
  * 
- * Configures security policies for the API Gateway:
- * - CORS configuration for web client access
- * - CSRF disabled (stateless REST API)
- * - Security headers for protection against common attacks
- * - Public endpoint access rules
+ * Configures security policies for the reactive Spring Cloud Gateway.
+ * This is a stateless gateway - no session management, all authentication via JWT.
  * 
- * Security considerations:
- * - JWT authentication is handled by custom filters
- * - CORS is configured per environment (strict in production)
- * - Security headers prevent XSS, clickjacking, and other attacks
- * - Public endpoints are explicitly defined and secured
+ * Security Features:
+ * - CSRF disabled (stateless REST API with JWT authentication)
+ * - CORS configured via application.yml (spring.cloud.gateway.globalcors)
+ * - Public endpoints: /actuator/health, /actuator/info, /api-docs, /swagger-ui
+ * - Authentication endpoints: /api/v1/auth/** (login, register, refresh)
+ * - All other endpoints require authentication (handled by JwtAuthenticationFilter)
+ * 
+ * HTTP Security Headers:
+ * - X-Content-Type-Options: nosniff
+ * - X-Frame-Options: DENY
+ * - X-XSS-Protection: 1; mode=block
+ * - Strict-Transport-Security: max-age=31536000; includeSubDomains (HTTPS only)
+ * 
+ * Note: JWT validation is performed by JwtAuthenticationFilter (WebFilter)
+ * which runs before this SecurityWebFilterChain.
  * 
  * @author Banking Platform Team
  * @version 1.0.0
- * @since 2024-01-01
  */
 @Slf4j
 @Configuration
@@ -36,96 +41,32 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final GatewayProperties gatewayProperties;
-
-    /**
-     * Configures the security filter chain for the gateway.
-     * 
-     * Security policies:
-     * - Disable CSRF (stateless API)
-     * - Configure CORS for cross-origin requests
-     * - Set security headers
-     * - Define public endpoint access rules
-     * 
-     * @param http ServerHttpSecurity configuration
-     * @return Configured SecurityWebFilterChain
-     */
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
-        log.info("Configuring security filter chain for API Gateway");
-        
-        return http
-            // Disable CSRF for stateless REST API
-            .csrf(csrf -> csrf.disable())
-            
-            // Configure CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
-            // Configure security headers
-            .headers(headers -> headers
-                .frameOptions(frameOptions -> frameOptions.deny())
-                .contentTypeOptions(contentTypeOptions -> contentTypeOptions.and())
-                .httpStrictTransportSecurity(hstsConfig -> hstsConfig
-                    .maxAgeInSeconds(31536000) // 1 year
-                    .includeSubdomains(true)))
-            
-            // Configure authorization rules
-            .authorizeExchange(exchanges -> exchanges
-                // Public endpoints - no authentication required
-                .pathMatchers("/api/v1/auth/**").permitAll()
-                .pathMatchers("/actuator/health/**").permitAll()
-                .pathMatchers("/actuator/info").permitAll()
-                .pathMatchers("/actuator/prometheus").permitAll()
-                .pathMatchers("/fallback/**").permitAll()
-                
-                // All other endpoints require authentication (handled by JWT filter)
-                .anyExchange().authenticated())
-            
-            .build();
-    }
+        log.info("Configuring API Gateway security filter chain");
 
-    /**
-     * Configures CORS (Cross-Origin Resource Sharing) settings.
-     * 
-     * CORS configuration is environment-specific:
-     * - Development: Permissive for local development
-     * - Staging: Restricted to staging domains
-     * - Production: Strict whitelist of production domains
-     * 
-     * @return CORS configuration source
-     */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        log.info("Configuring CORS with allowed origins: {}", 
-                gatewayProperties.getCors().getAllowedOrigins());
-        
-        CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Allowed origins from configuration
-        configuration.setAllowedOrigins(gatewayProperties.getCors().getAllowedOrigins());
-        
-        // Allowed methods
-        configuration.setAllowedMethods(gatewayProperties.getCors().getAllowedMethods());
-        
-        // Allowed headers
-        configuration.setAllowedHeaders(gatewayProperties.getCors().getAllowedHeaders());
-        
-        // Allow credentials (required for JWT cookies if used)
-        configuration.setAllowCredentials(gatewayProperties.getCors().isAllowCredentials());
-        
-        // Preflight cache duration
-        configuration.setMaxAge((long) gatewayProperties.getCors().getMaxAgeSeconds());
-        
-        // Expose headers that clients can access
-        configuration.addExposedHeader("X-RateLimit-Limit");
-        configuration.addExposedHeader("X-RateLimit-Remaining");
-        configuration.addExposedHeader("X-RateLimit-Reset");
-        configuration.addExposedHeader("X-Request-ID");
-        configuration.addExposedHeader("X-Trace-ID");
-        
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        
-        return source;
+        return http
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/actuator/info").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api-docs", "/api-docs/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
+                        .anyExchange().authenticated()
+                )
+                .headers(headers -> headers
+                        .contentTypeOptions(contentTypeOptions -> {})
+                        .frameOptions(frameOptions -> 
+                                frameOptions.mode(XFrameOptionsServerHttpHeadersWriter.Mode.DENY))
+                        .xssProtection(xss -> {})
+                        .hsts(hsts -> hsts
+                                .maxAge(java.time.Duration.ofDays(365))
+                                .includeSubdomains(true))
+                )
+                .build();
     }
 }

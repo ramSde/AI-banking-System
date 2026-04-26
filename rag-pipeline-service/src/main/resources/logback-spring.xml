@@ -3,31 +3,37 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     
     <springProperty scope="context" name="applicationName" source="spring.application.name" defaultValue="rag-pipeline-service"/>
-    <springProperty scope="context" name="activeProfile" source="spring.profiles.active" defaultValue="dev"/>
+    <springProperty scope="context" name="environment" source="ENVIRONMENT" defaultValue="dev"/>
     
+    <!-- Console Appender for Development -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- JSON Appender for Production -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"service":"${applicationName}","environment":"${activeProfile}"}</customFields>
+            <customFields>{"service":"${applicationName}","environment":"${environment}"}</customFields>
             <fieldNames>
                 <timestamp>timestamp</timestamp>
                 <version>[ignore]</version>
                 <levelValue>[ignore]</levelValue>
             </fieldNames>
-            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
-                <maxDepthPerThrowable>30</maxDepthPerThrowable>
-                <maxLength>2048</maxLength>
-                <shortenedClassNameLength>20</shortenedClassNameLength>
-                <exclude>^sun\.reflect\..*\.invoke</exclude>
-                <exclude>^net\.sf\.cglib\.proxy\.MethodProxy\.invoke</exclude>
-                <rootCauseFirst>true</rootCauseFirst>
-            </throwableConverter>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
         </encoder>
     </appender>
     
+    <!-- File Appender for Application Logs -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/${applicationName}.log</file>
+        <file>logs/rag-pipeline-service.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/${applicationName}-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <fileNamePattern>logs/rag-pipeline-service.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <maxFileSize>100MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
@@ -35,19 +41,53 @@
             <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"service":"${applicationName}","environment":"${activeProfile}"}</customFields>
+            <customFields>{"service":"${applicationName}","environment":"${environment}"}</customFields>
         </encoder>
     </appender>
     
-    <logger name="com.banking.rag" level="DEBUG"/>
-    <logger name="org.springframework.web" level="INFO"/>
-    <logger name="org.springframework.security" level="INFO"/>
-    <logger name="org.springframework.kafka" level="INFO"/>
-    <logger name="org.hibernate.SQL" level="DEBUG"/>
-    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
-    
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
+    <!-- Async Appender for Performance -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
         <appender-ref ref="FILE"/>
-    </root>
+    </appender>
+    
+    <!-- Development Profile -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.banking.rag" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+    </springProfile>
+    
+    <!-- Staging Profile -->
+    <springProfile name="staging">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </root>
+        <logger name="com.banking.rag" level="INFO"/>
+        <logger name="org.springframework.web" level="WARN"/>
+    </springProfile>
+    
+    <!-- Production Profile -->
+    <springProfile name="prod">
+        <root level="WARN">
+            <appender-ref ref="JSON"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </root>
+        <logger name="com.banking.rag" level="INFO"/>
+        <logger name="org.springframework.web" level="WARN"/>
+        <logger name="org.springframework.security" level="WARN"/>
+    </springProfile>
+    
+    <!-- Specific Loggers -->
+    <logger name="org.springframework.kafka" level="WARN"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="liquibase" level="INFO"/>
+    
 </configuration>

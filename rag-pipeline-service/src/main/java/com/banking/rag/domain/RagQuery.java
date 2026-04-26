@@ -16,9 +16,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "rag_queries")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @EntityListeners(AuditingEntityListener.class)
 public class RagQuery {
 
@@ -29,11 +29,14 @@ public class RagQuery {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Column(name = "session_id")
+    private UUID sessionId;
+
     @Column(name = "query_text", nullable = false, columnDefinition = "TEXT")
     private String queryText;
 
-    @Column(name = "query_embedding", columnDefinition = "BYTEA")
-    private byte[] queryEmbedding;
+    @Column(name = "query_embedding", columnDefinition = "vector(1536)")
+    private String queryEmbedding;
 
     @Column(name = "top_k", nullable = false)
     @Builder.Default
@@ -43,9 +46,21 @@ public class RagQuery {
     @Builder.Default
     private BigDecimal similarityThreshold = new BigDecimal("0.7000");
 
-    @Column(name = "reranking_enabled", nullable = false)
+    @Column(name = "rerank_enabled", nullable = false)
     @Builder.Default
-    private Boolean rerankingEnabled = true;
+    private Boolean rerankEnabled = true;
+
+    @Column(name = "max_context_tokens", nullable = false)
+    @Builder.Default
+    private Integer maxContextTokens = 4000;
+
+    @Column(name = "retrieved_count", nullable = false)
+    @Builder.Default
+    private Integer retrievedCount = 0;
+
+    @Column(name = "final_count", nullable = false)
+    @Builder.Default
+    private Integer finalCount = 0;
 
     @Column(name = "cache_hit", nullable = false)
     @Builder.Default
@@ -54,28 +69,14 @@ public class RagQuery {
     @Column(name = "retrieval_latency_ms")
     private Long retrievalLatencyMs;
 
-    @Column(name = "reranking_latency_ms")
-    private Long rerankingLatencyMs;
+    @Column(name = "rerank_latency_ms")
+    private Long rerankLatencyMs;
 
     @Column(name = "total_latency_ms")
     private Long totalLatencyMs;
 
-    @Column(name = "results_count", nullable = false)
-    @Builder.Default
-    private Integer resultsCount = 0;
-
-    @Column(name = "status", nullable = false, length = 50)
-    @Builder.Default
-    private String status = "PENDING";
-
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    private String errorMessage;
-
     @Column(name = "trace_id")
     private String traceId;
-
-    @Column(name = "session_id")
-    private String sessionId;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

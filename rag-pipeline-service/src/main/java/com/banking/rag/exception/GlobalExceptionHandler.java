@@ -4,172 +4,129 @@ import com.banking.rag.dto.ApiResponse;
 import io.micrometer.tracing.Tracer;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.stream.Collectors;
 
-@Slf4j
 @RestControllerAdvice
+@Slf4j
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
     private final Tracer tracer;
 
-    public GlobalExceptionHandler(Tracer tracer) {
-        this.tracer = tracer;
+    private String getTraceId() {
+        if (tracer.currentSpan() != null) {
+            return tracer.currentSpan().context().traceId();
+        }
+        return "no-trace-id";
     }
 
-    @ExceptionHandler(RetrievalException.class)
-    public ResponseEntity<ApiResponse<Void>> handleRetrievalException(RetrievalException ex, WebRequest request) {
-        log.error("Retrieval error: {}", ex.getMessage(), ex);
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                ex.getErrorCode(),
-                ex.getMessage(),
-                traceId
-        );
+    @ExceptionHandler(QueryNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleQueryNotFoundException(
+            QueryNotFoundException ex, WebRequest request) {
+        log.error("Query not found: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error(ex.getErrorCode(), ex.getMessage(), getTraceId());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(VectorSearchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVectorSearchException(
+            VectorSearchException ex, WebRequest request) {
+        log.error("Vector search error: {}", ex.getMessage(), ex);
+        ApiResponse<Void> response = ApiResponse.error(ex.getErrorCode(), ex.getMessage(), getTraceId());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
     @ExceptionHandler(RerankingException.class)
-    public ResponseEntity<ApiResponse<Void>> handleRerankingException(RerankingException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<Void>> handleRerankingException(
+            RerankingException ex, WebRequest request) {
         log.error("Reranking error: {}", ex.getMessage(), ex);
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                ex.getErrorCode(),
-                ex.getMessage(),
-                traceId
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-    }
-
-    @ExceptionHandler(ContextAssemblyException.class)
-    public ResponseEntity<ApiResponse<Void>> handleContextAssemblyException(ContextAssemblyException ex, WebRequest request) {
-        log.error("Context assembly error: {}", ex.getMessage(), ex);
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                ex.getErrorCode(),
-                ex.getMessage(),
-                traceId
-        );
+        ApiResponse<Void> response = ApiResponse.error(ex.getErrorCode(), ex.getMessage(), getTraceId());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
     @ExceptionHandler(RagException.class)
-    public ResponseEntity<ApiResponse<Void>> handleRagException(RagException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<Void>> handleRagException(
+            RagException ex, WebRequest request) {
         log.error("RAG error: {}", ex.getMessage(), ex);
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                ex.getErrorCode(),
-                ex.getMessage(),
-                traceId
-        );
+        ApiResponse<Void> response = ApiResponse.error(ex.getErrorCode(), ex.getMessage(), getTraceId());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException ex, WebRequest request) {
-        log.warn("Validation error: {}", ex.getMessage());
-        String traceId = getTraceId();
-        
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(
+            MethodArgumentNotValidException ex, WebRequest request) {
+        List<String> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(FieldError::getDefaultMessage)
+                .collect(Collectors.toList());
 
-        ApiResponse<Void> response = ApiResponse.error(
+        log.warn("Validation error: {}", errors);
+        ApiResponse.ErrorDetails errorDetails = new ApiResponse.ErrorDetails(
                 "VALIDATION_ERROR",
-                "Input validation failed",
-                errors,
-                traceId
+                "Request validation failed",
+                errors
         );
+        ApiResponse<Void> response = ApiResponse.error(errorDetails, getTraceId());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConstraintViolationException(ConstraintViolationException ex, WebRequest request) {
-        log.warn("Constraint violation: {}", ex.getMessage());
-        String traceId = getTraceId();
-        
-        Map<String, String> errors = ex.getConstraintViolations().stream()
-                .collect(Collectors.toMap(
-                        violation -> violation.getPropertyPath().toString(),
-                        ConstraintViolation::getMessage
-                ));
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolationException(
+            ConstraintViolationException ex, WebRequest request) {
+        List<String> errors = ex.getConstraintViolations()
+                .stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.toList());
 
-        ApiResponse<Void> response = ApiResponse.error(
+        log.warn("Constraint violation: {}", errors);
+        ApiResponse.ErrorDetails errorDetails = new ApiResponse.ErrorDetails(
                 "VALIDATION_ERROR",
-                "Constraint validation failed",
-                errors,
-                traceId
+                "Request validation failed",
+                errors
         );
+        ApiResponse<Void> response = ApiResponse.error(errorDetails, getTraceId());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBadCredentialsException(BadCredentialsException ex, WebRequest request) {
-        log.warn("Authentication failed: {}", ex.getMessage());
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                "AUTHENTICATION_FAILED",
-                "Invalid credentials",
-                traceId
-        );
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(
+            AuthenticationException ex, WebRequest request) {
+        log.error("Authentication error: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error("AUTHENTICATION_ERROR", "Authentication failed", getTraceId());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex, WebRequest request) {
-        log.warn("Access denied: {}", ex.getMessage());
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                "ACCESS_DENIED",
-                "You do not have permission to access this resource",
-                traceId
-        );
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(
+            AccessDeniedException ex, WebRequest request) {
+        log.error("Access denied: {}", ex.getMessage());
+        ApiResponse<Void> response = ApiResponse.error("ACCESS_DENIED", "Access denied", getTraceId());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
-        log.warn("Illegal argument: {}", ex.getMessage());
-        String traceId = getTraceId();
-        ApiResponse<Void> response = ApiResponse.error(
-                "INVALID_ARGUMENT",
-                ex.getMessage(),
-                traceId
-        );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleGlobalException(Exception ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<Void>> handleGlobalException(
+            Exception ex, WebRequest request) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
-        String traceId = getTraceId();
         ApiResponse<Void> response = ApiResponse.error(
                 "INTERNAL_SERVER_ERROR",
                 "An unexpected error occurred. Please try again later.",
-                traceId
+                getTraceId()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-    }
-
-    private String getTraceId() {
-        if (tracer != null && tracer.currentSpan() != null && tracer.currentSpan().context() != null) {
-            return tracer.currentSpan().context().traceId();
-        }
-        return "no-trace-id";
     }
 }

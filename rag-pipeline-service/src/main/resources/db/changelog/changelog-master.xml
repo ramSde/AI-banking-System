@@ -9,5 +9,6 @@
     <include file="db/changelog/V002__create_rag_contexts.sql"/>
     <include file="db/changelog/V003__create_rag_cache.sql"/>
     <include file="db/changelog/V004__create_indexes.sql"/>
+    <include file="db/changelog/V005__seed_reference_data.sql"/>
 
 </databaseChangeLog>

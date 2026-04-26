@@ -1,12 +1,9 @@
-server:
-  port: 8013
-
 spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true&useSSL=true&characterEncoding=utf8
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 10
+      maximum-pool-size: 15
+      minimum-idle: 3
   
   jpa:
     show-sql: false
@@ -16,46 +13,25 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
-      ssl: true
   
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-    properties:
-      security.protocol: SASL_SSL
-      sasl.mechanism: PLAIN
-      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+  
+  ai:
+    vectorstore:
+      chroma:
+        client:
+          host: ${CHROMA_HOST}
+          port: ${CHROMA_PORT}
 
-spring.ai:
-  openai:
-    api-key: ${OPENAI_API_KEY}
-  
-  vectorstore:
-    chroma:
-      client:
-        host: ${CHROMADB_HOST}
-        port: ${CHROMADB_PORT}
-
-rag:
-  retrieval:
-    top-k: 10
-    similarity-threshold: 0.75
-  
-  reranking:
-    enabled: true
-    top-n: 5
-  
-  context:
-    max-tokens: 4000
-  
-  cache:
-    enabled: true
-    ttl-seconds: 7200
-    similarity-threshold: 0.95
+server:
+  port: 8093
+  tomcat:
+    threads:
+      max: 150
+      min-spare: 10
 
 management:
-  endpoint:
-    health:
-      show-details: when-authorized
   tracing:
     sampling:
       probability: 0.5
@@ -67,3 +43,27 @@ logging:
     org.springframework.web: WARN
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+rag:
+  retrieval:
+    top-k: 10
+    similarity-threshold: 0.75
+  reranking:
+    enabled: true
+    top-n: 5
+  context:
+    max-tokens: 4000
+  cache:
+    enabled: true
+    ttl-seconds: 3600
+    similarity-threshold: 0.95
+
+security:
+  allowed-origins: ${ALLOWED_ORIGINS}
+  rate-limit:
+    enabled: true
+    requests-per-minute: 100

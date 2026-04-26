@@ -3,45 +3,18 @@ package com.banking.rag.service;
 import com.banking.rag.dto.CacheStatsResponse;
 import com.banking.rag.dto.RetrievalResponse;
 
-import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface SemanticCacheService {
 
-    /**
-     * Checks if a similar query exists in cache.
-     * 
-     * @param queryEmbedding Query embedding
-     * @param similarityThreshold Similarity threshold
-     * @return Cached response if found, null otherwise
-     */
-    RetrievalResponse getCachedResponse(float[] queryEmbedding, BigDecimal similarityThreshold);
+    Optional<RetrievalResponse> getCachedResult(String queryText, String queryEmbedding);
 
-    /**
-     * Stores query response in cache.
-     * 
-     * @param queryText Query text
-     * @param queryEmbedding Query embedding
-     * @param response Response to cache
-     * @param ttlSeconds Time to live in seconds
-     */
-    void cacheResponse(String queryText, float[] queryEmbedding, RetrievalResponse response, long ttlSeconds);
+    void cacheResult(String queryText, String queryEmbedding, UUID contextId, int ttlSeconds);
 
-    /**
-     * Gets cache statistics.
-     * 
-     * @return Cache statistics
-     */
-    CacheStatsResponse getCacheStats();
-
-    /**
-     * Clears all cache entries.
-     */
     void clearCache();
 
-    /**
-     * Removes expired cache entries.
-     * 
-     * @return Number of entries removed
-     */
-    int removeExpiredEntries();
+    void clearExpiredCaches();
+
+    CacheStatsResponse getCacheStats();
 }

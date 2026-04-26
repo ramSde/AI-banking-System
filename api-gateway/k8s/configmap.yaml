@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: banking-prod
+  labels:
+    app: api-gateway
+data:
+  # Redis Configuration
+  redis.host: "redis-service.banking-prod.svc.cluster.local"
+  redis.port: "6379"
+  
+  # JWT Configuration
+  jwt.issuer: "banking-platform"
+  jwt.audience: "banking-api"
+  
+  # CORS Configuration
+  cors.allowed-origins: "https://banking.example.com,https://app.banking.example.com"
+  
+  # Observability
+  otlp.endpoint: "http://jaeger-collector.observability.svc.cluster.local:4317"
+  
+  # Rate Limiting
+  rate-limit.enabled: "true"
+  rate-limit.per-user: "100"
+  rate-limit.per-ip: "200"
+  rate-limit.window-size: "60"
+  
+  # Service URIs (Kubernetes DNS)
+  identity-service.uri: "http://identity-service.banking-prod.svc.cluster.local:8080"
+  otp-service.uri: "http://otp-service.banking-prod.svc.cluster.local:8080"
+  mfa-service.uri: "http://mfa-service.banking-prod.svc.cluster.local:8080"
+  risk-auth-service.uri: "http://risk-auth-service.banking-prod.svc.cluster.local:8080"
+  device-intelligence-service.uri: "http://device-intelligence-service.banking-prod.svc.cluster.local:8080"
+  user-service.uri: "http://user-service.banking-prod.svc.cluster.local:8080"
+  account-service.uri: "http://account-service.banking-prod.svc.cluster.local:8080"
+  transaction-service.uri: "http://transaction-service.banking-prod.svc.cluster.local:8080"
+  fraud-detection-service.uri: "http://fraud-detection-service.banking-prod.svc.cluster.local:8080"
+  audit-service.uri: "http://audit-service.banking-prod.svc.cluster.local:8080"
+  notification-service.uri: "http://notification-service.banking-prod.svc.cluster.local:8080"
+  document-ingestion-service.uri: "http://document-ingestion-service.banking-prod.svc.cluster.local:8080"
+  rag-pipeline-service.uri: "http://rag-pipeline-service.banking-prod.svc.cluster.local:8080"
+  ai-orchestration-service.uri: "http://ai-orchestration-service.banking-prod.svc.cluster.local:8080"
+  ai-insight-service.uri: "http://ai-insight-service.banking-prod.svc.cluster.local:8080"
+  chat-service.uri: "http://chat-service.banking-prod.svc.cluster.local:8080"
+  vision-processing-service.uri: "http://vision-processing-service.banking-prod.svc.cluster.local:8080"
+  speech-to-text-service.uri: "http://speech-to-text-service.banking-prod.svc.cluster.local:8080"
+  text-to-speech-service.uri: "http://text-to-speech-service.banking-prod.svc.cluster.local:8080"
+  statement-service.uri: "http://statement-service.banking-prod.svc.cluster.local:8080"
+  admin-dashboard-service.uri: "http://admin-dashboard-service.banking-prod.svc.cluster.local:8080"
+  transaction-categorization-service.uri: "http://transaction-categorization-service.banking-prod.svc.cluster.local:8080"
+  analytics-service.uri: "http://analytics-service.banking-prod.svc.cluster.local:8080"
+  budget-service.uri: "http://budget-service.banking-prod.svc.cluster.local:8080"
+  search-service.uri: "http://search-service.banking-prod.svc.cluster.local:8080"
+  export-service.uri: "http://export-service.banking-prod.svc.cluster.local:8080"
+  dashboard-aggregation-service.uri: "http://dashboard-aggregation-service.banking-prod.svc.cluster.local:8080"
+  reconciliation-service.uri: "http://reconciliation-service.banking-prod.svc.cluster.local:8080"
+  backoffice-service.uri: "http://backoffice-service.banking-prod.svc.cluster.local:8080"
+  multi-language-service.uri: "http://multi-language-service.banking-prod.svc.cluster.local:8080"
