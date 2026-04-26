@@ -1,0 +1,56 @@
+server:
+  port: 8014
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ai_orchestration_db?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: admin
+    password: admin
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+
+openai:
+  api-key: ${OPENAI_API_KEY:sk-test-key}
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:sk-ant-test-key}
+
+ollama:
+  base-url: http://localhost:11434
+
+ai:
+  budget:
+    enforcement-enabled: false
+  quota:
+    enforcement-enabled: false
+  rate-limit:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    root: INFO
+    com.banking.orchestration: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG

@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-orchestration-configmap
+  namespace: banking
+  labels:
+    app: ai-orchestration-service
+    component: config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
+  SPRING_APPLICATION_NAME: "ai-orchestration-service"
+  
+  # Database
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-service:5432/banking_ai_orchestration"
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+  SPRING_JPA_DATABASE_PLATFORM: "org.hibernate.dialect.PostgreSQLDialect"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "validate"
+  SPRING_JPA_SHOW_SQL: "false"
+  SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
+  
+  # Liquibase
+  SPRING_LIQUIBASE_ENABLED: "true"
+  SPRING_LIQUIBASE_CHANGE_LOG: "classpath:db/changelog/changelog-master.xml"
+  
+  # HikariCP
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "20"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "5"
+  SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "30000"
+  SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT: "600000"
+  SPRING_DATASOURCE_HIKARI_MAX_LIFETIME: "1800000"
+  SPRING_DATASOURCE_HIKARI_POOL_NAME: "AiOrchestrationHikariPool"
+  
+  # Redis
+  SPRING_DATA_REDIS_HOST: "redis-service"
+  SPRING_DATA_REDIS_PORT: "6379"
+  
+  # Kafka
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  SPRING_KAFKA_PRODUCER_KEY_SERIALIZER: "org.apache.kafka.common.serialization.StringSerializer"
+  SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER: "org.springframework.kafka.support.serializer.JsonSerializer"
+  
+  # AI Configuration
+  AI_PRIMARY_PROVIDER: "openai"
+  AI_FALLBACK_ENABLED: "true"
+  AI_BUDGET_ENFORCEMENT: "true"
+  AI_QUOTA_ENFORCEMENT: "true"
+  AI_RATE_LIMIT_PER_MINUTE: "60"
+  
+  # OpenAI
+  SPRING_AI_OPENAI_BASE_URL: "https://api.openai.com"
+  SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL: "gpt-4"
+  SPRING_AI_OPENAI_CHAT_OPTIONS_TEMPERATURE: "0.7"
+  
+  # Anthropic
+  AI_ANTHROPIC_BASE_URL: "https://api.anthropic.com"
+  AI_ANTHROPIC_TIMEOUT: "60"
+  
+  # Ollama
+  AI_OLLAMA_BASE_URL: "http://ollama-service:11434"
+  AI_OLLAMA_MODEL: "llama2"
+  AI_OLLAMA_TIMEOUT: "120"
+  
+  # Actuator
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,prometheus,info"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+  MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+  
+  # Logging
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_COM_BANKING_ORCHESTRATION: "DEBUG"
+  LOGGING_PATTERN_CONSOLE: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

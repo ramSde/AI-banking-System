@@ -1,0 +1,72 @@
+server:
+  port: 8014
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true&useSSL=true&sslmode=require&characterEncoding=utf8
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 15
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl: true
+      timeout: 5000
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+      ssl.endpoint.identification.algorithm: https
+
+ai:
+  budget:
+    enforcement-enabled: true
+    alert-threshold: 0.9
+  quota:
+    enforcement-enabled: true
+  rate-limit:
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      openai:
+        failure-rate-threshold: 30
+        slow-call-duration-threshold: 8s
+      anthropic:
+        failure-rate-threshold: 30
+        slow-call-duration-threshold: 8s
+      ollama:
+        failure-rate-threshold: 30
+        slow-call-duration-threshold: 12s
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 0.1
+
+logging:
+  level:
+    root: WARN
+    com.banking.orchestration: INFO
+    org.springframework.web: ERROR
+    org.springframework.security: ERROR
+    org.hibernate.SQL: ERROR

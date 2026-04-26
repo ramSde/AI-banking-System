@@ -1,0 +1,267 @@
+server:
+  port: ${SERVER_PORT:8014}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  tomcat:
+    threads:
+      max: ${TOMCAT_THREADS_MAX:200}
+      min-spare: ${TOMCAT_THREADS_MIN_SPARE:10}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+    connection-timeout: ${TOMCAT_CONNECTION_TIMEOUT:20000}
+
+spring:
+  application:
+    name: ai-orchestration-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ai_orchestration_db}?autoReconnect=true&useSSL=false&characterEncoding=utf8
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:20}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      connection-test-query: SELECT 1
+      pool-name: AiOrchestrationHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/changelog-master.xml
+    default-schema: public
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:20}
+          max-idle: ${REDIS_POOL_MAX_IDLE:10}
+          min-idle: ${REDIS_POOL_MIN_IDLE:5}
+          max-wait: ${REDIS_POOL_MAX_WAIT:2000}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${CACHE_TTL:3600000}
+
+# Security Configuration
+security:
+  jwt:
+    secret: ${JWT_SECRET:your-secret-key-change-in-production}
+    expiration: ${JWT_EXPIRATION:900000}
+
+# OpenAI Configuration
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+  model:
+    primary: ${OPENAI_MODEL_PRIMARY:gpt-4}
+    secondary: ${OPENAI_MODEL_SECONDARY:gpt-3.5-turbo}
+  timeout: ${OPENAI_TIMEOUT:60000}
+  pricing:
+    gpt4:
+      input: ${OPENAI_GPT4_INPUT_PRICE:0.03}
+      output: ${OPENAI_GPT4_OUTPUT_PRICE:0.06}
+    gpt35:
+      input: ${OPENAI_GPT35_INPUT_PRICE:0.0015}
+      output: ${OPENAI_GPT35_OUTPUT_PRICE:0.002}
+
+# Anthropic Configuration
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+  model: ${ANTHROPIC_MODEL:claude-3-sonnet-20240229}
+  timeout: ${ANTHROPIC_TIMEOUT:60000}
+  pricing:
+    input: ${ANTHROPIC_CLAUDE_INPUT_PRICE:0.008}
+    output: ${ANTHROPIC_CLAUDE_OUTPUT_PRICE:0.024}
+
+# Ollama Configuration
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:llama2}
+  timeout: ${OLLAMA_TIMEOUT:120000}
+  pricing:
+    input: ${OLLAMA_INPUT_PRICE:0.0}
+    output: ${OLLAMA_OUTPUT_PRICE:0.0}
+
+# AI Orchestration Configuration
+ai:
+  orchestration:
+    primary-provider: ${AI_PRIMARY_PROVIDER:openai}
+    fallback-enabled: ${AI_FALLBACK_ENABLED:true}
+    fallback-chain: ${AI_FALLBACK_CHAIN:openai,anthropic,ollama}
+    max-retries: ${AI_MAX_RETRIES:3}
+    retry-delay-ms: ${AI_RETRY_DELAY_MS:1000}
+  
+  budget:
+    enforcement-enabled: ${AI_BUDGET_ENFORCEMENT:true}
+    default-daily-usd: ${AI_DEFAULT_DAILY_BUDGET_USD:10.00}
+    default-monthly-usd: ${AI_DEFAULT_MONTHLY_BUDGET_USD:300.00}
+    alert-threshold: ${AI_COST_ALERT_THRESHOLD:0.8}
+  
+  quota:
+    enforcement-enabled: ${AI_QUOTA_ENFORCEMENT:true}
+    free-tier-daily: ${AI_FREE_TIER_DAILY_TOKENS:10000}
+    basic-tier-daily: ${AI_BASIC_TIER_DAILY_TOKENS:50000}
+    premium-tier-daily: ${AI_PREMIUM_TIER_DAILY_TOKENS:200000}
+    enterprise-tier-daily: ${AI_ENTERPRISE_TIER_DAILY_TOKENS:-1}
+  
+  rate-limit:
+    enabled: ${AI_RATE_LIMIT_ENABLED:true}
+    per-minute: ${AI_RATE_LIMIT_PER_MINUTE:60}
+    per-hour: ${AI_RATE_LIMIT_PER_HOUR:1000}
+    per-day: ${AI_RATE_LIMIT_PER_DAY:10000}
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      openai:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 30s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 10s
+      anthropic:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 30s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 10s
+      ollama:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 30s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 15s
+  
+  retry:
+    instances:
+      openai:
+        max-attempts: 3
+        wait-duration: 2s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+      anthropic:
+        max-attempts: 3
+        wait-duration: 2s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+      ollama:
+        max-attempts: 3
+        wait-duration: 3s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+  
+  timelimiter:
+    instances:
+      openai:
+        timeout-duration: 60s
+      anthropic:
+        timeout-duration: 60s
+      ollama:
+        timeout-duration: 120s
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: ${ACTUATOR_HEALTH_SHOW_DETAILS:when-authorized}
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+
+# Logging Configuration
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.banking.orchestration: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_SPRING_WEB:INFO}
+    org.springframework.security: ${LOG_LEVEL_SPRING_SECURITY:INFO}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:DEBUG}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: true
