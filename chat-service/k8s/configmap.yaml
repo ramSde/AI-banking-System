@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-service-config
+  namespace: banking-platform
+  labels:
+    app: chat-service
+    component: configuration
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8086"
+  
+  # Database Configuration
+  DB_POOL_MAX_SIZE: "20"
+  DB_POOL_MIN_IDLE: "5"
+  DB_CONNECTION_TIMEOUT: "30000"
+  DB_IDLE_TIMEOUT: "600000"
+  DB_MAX_LIFETIME: "1800000"
+  
+  # JPA Configuration
+  JPA_SHOW_SQL: "false"
+  
+  # Liquibase Configuration
+  LIQUIBASE_ENABLED: "true"
+  
+  # Redis Configuration
+  REDIS_TIMEOUT: "2000"
+  REDIS_POOL_MAX_ACTIVE: "8"
+  REDIS_POOL_MAX_IDLE: "8"
+  REDIS_POOL_MIN_IDLE: "2"
+  REDIS_POOL_MAX_WAIT: "2000"
+  
+  # Kafka Configuration
+  KAFKA_CONSUMER_GROUP: "chat-service-consumer-group"
+  KAFKA_PRODUCER_RETRIES: "3"
+  
+  # File Upload Configuration
+  MAX_FILE_SIZE: "10MB"
+  MAX_REQUEST_SIZE: "15MB"
+  
+  # Cache Configuration
+  CACHE_TTL: "3600000"
+  
+  # Tomcat Configuration
+  TOMCAT_THREADS_MAX: "200"
+  TOMCAT_THREADS_MIN_SPARE: "10"
+  TOMCAT_ACCEPT_COUNT: "100"
+  TOMCAT_CONNECTION_TIMEOUT: "20000"
+  
+  # Management & Actuator
+  HEALTH_SHOW_DETAILS: "never"
+  
+  # Metrics & Tracing
+  TRACING_SAMPLING_PROBABILITY: "0.1"
+  
+  # Logging Configuration
+  LOG_LEVEL_ROOT: "WARN"
+  LOG_LEVEL_APP: "INFO"
+  LOG_LEVEL_SPRING_WEB: "WARN"
+  LOG_LEVEL_SPRING_SECURITY: "WARN"
+  LOG_LEVEL_HIBERNATE_SQL: "WARN"
+  
+  # SpringDoc OpenAPI
+  SPRINGDOC_ENABLED: "false"
+  SWAGGER_UI_ENABLED: "false"
+  
+  # Chat Service Configuration
+  CHAT_MAX_HISTORY: "20"
+  CHAT_SESSION_TIMEOUT: "30"
+  CHAT_MAX_MESSAGE_LENGTH: "4000"
+  CHAT_CONTEXT_WINDOW: "8000"
+  CHAT_ENABLE_STREAMING: "true"
+  CHAT_RATE_LIMIT_MESSAGES: "20"
+  CHAT_RATE_LIMIT_HOUR: "100"
+  
+  # AI Service URLs
+  AI_ORCHESTRATION_URL: "http://ai-orchestration-service:8084/api"
+  AI_ORCHESTRATION_CONNECT_TIMEOUT: "5000"
+  AI_ORCHESTRATION_READ_TIMEOUT: "60000"
+  
+  RAG_PIPELINE_URL: "http://rag-pipeline-service:8083/api"
+  RAG_CONNECT_TIMEOUT: "5000"
+  RAG_READ_TIMEOUT: "30000"

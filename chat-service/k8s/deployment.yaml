@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-service
+  namespace: banking-platform
+  labels:
+    app: chat-service
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: chat-service
+  template:
+    metadata:
+      labels:
+        app: chat-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8086"
+        prometheus.io/path: "/api/actuator/prometheus"
+    spec:
+      serviceAccountName: chat-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -v -w30 postgres-service 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 5
+              done
+        
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -v -w30 kafka-service 9092; do
+                echo "Waiting for Kafka..."
+                sleep 5
+              done
+      
+      containers:
+        - name: chat-service
+          image: banking-platform/chat-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8086
+              protocol: TCP
+          
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: chat-service-config
+                  key: SPRING_PROFILES_ACTIVE
+            
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: db-url
+            
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: db-username
+            
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: db-password
+            
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: redis-host
+            
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: redis-port
+            
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: redis-password
+            
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: kafka-bootstrap-servers
+            
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chat-service-secrets
+                  key: jwt-secret
+          
+          envFrom:
+            - configMapRef:
+                name: chat-service-config
+          
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          
+          livenessProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: 8086
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /api/actuator/health/readiness
+              port: 8086
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      
+      volumes:
+        - name: logs
+          emptyDir: {}
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - chat-service
+                topologyKey: kubernetes.io/hostname
