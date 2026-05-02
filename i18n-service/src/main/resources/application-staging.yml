@@ -1,0 +1,47 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+  
+  jpa:
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+server:
+  port: 8087
+
+logging:
+  level:
+    root: INFO
+    com.banking.i18n: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: false
+
+i18n:
+  translation-api:
+    enabled: true
+  auto-translate-missing: true
+
+management:
+  tracing:
+    sampling:
+      probability: 0.5

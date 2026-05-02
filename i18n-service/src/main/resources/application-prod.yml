@@ -1,0 +1,70 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 20
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        generate_statistics: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      ssl: true
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SSL
+      ssl.truststore.location: ${KAFKA_SSL_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_SSL_TRUSTSTORE_PASSWORD}
+      ssl.keystore.location: ${KAFKA_SSL_KEYSTORE_LOCATION}
+      ssl.keystore.password: ${KAFKA_SSL_KEYSTORE_PASSWORD}
+
+server:
+  port: 8087
+  tomcat:
+    threads:
+      max: 300
+      min-spare: 20
+
+logging:
+  level:
+    root: WARN
+    com.banking.i18n: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+i18n:
+  translation-api:
+    enabled: true
+  auto-translate-missing: true
+  cache-ttl-seconds: 7200
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1

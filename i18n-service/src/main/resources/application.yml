@@ -1,0 +1,182 @@
+spring:
+  application:
+    name: i18n-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/i18n_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+      connection-test-query: SELECT 1
+      pool-name: I18nHikariPool
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  liquibase:
+    change-log: classpath:db/changelog/changelog-master.xml
+    enabled: true
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+          max-idle: ${REDIS_POOL_MAX_IDLE:8}
+          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-wait: ${REDIS_POOL_MAX_WAIT:2000}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:i18n-service-consumer-group}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+        isolation.level: read_committed
+    listener:
+      ack-mode: manual_immediate
+  
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:15MB}
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8081}
+
+server:
+  port: ${SERVER_PORT:8087}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    min-response-size: 1024
+  tomcat:
+    threads:
+      max: ${TOMCAT_THREADS_MAX:200}
+      min-spare: ${TOMCAT_THREADS_MIN_SPARE:10}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:8192}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.banking.i18n: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_SPRING_WEB:INFO}
+    org.springframework.security: ${LOG_LEVEL_SPRING_SECURITY:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:DEBUG}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_HIBERNATE_BINDER:TRACE}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_UI_ENABLED:true}
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+i18n:
+  default-locale: ${I18N_DEFAULT_LOCALE:en}
+  supported-locales: ${I18N_SUPPORTED_LOCALES:en,es,fr,de,hi,ar,zh}
+  cache-ttl-seconds: ${I18N_CACHE_TTL:3600}
+  translation-api:
+    enabled: ${TRANSLATION_API_ENABLED:false}
+    provider: ${TRANSLATION_API_PROVIDER:google}
+    api-key: ${TRANSLATION_API_KEY:}
+    timeout-seconds: ${TRANSLATION_API_TIMEOUT:30}
+  fallback-to-default: ${I18N_FALLBACK_TO_DEFAULT:true}
+  auto-translate-missing: ${I18N_AUTO_TRANSLATE_MISSING:false}
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production}
+  expiration: ${JWT_EXPIRATION:900000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      translationApi:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 5s
+  
+  retry:
+    instances:
+      translationApi:
+        max-attempts: 3
+        wait-duration: 1s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
