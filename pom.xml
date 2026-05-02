@@ -45,6 +45,7 @@
         <module>risk-service</module>
         <module>device-service</module>
         <module>i18n-service</module>
+        <module>vision-processing-service</module>
         <module>shared</module>
         <!-- Future modules will be added here -->
         <!-- <module>user-service</module> -->
