@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: speech-to-text-deployment
+  namespace: banking-platform
+  labels:
+    app: speech-to-text-service
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: speech-to-text-service
+  template:
+    metadata:
+      labels:
+        app: speech-to-text-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8019"
+        prometheus.io/path: "/api/actuator/prometheus"
+    spec:
+      serviceAccountName: speech-to-text-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+        - name: speech-to-text
+          image: banking-platform/speech-to-text-service:latest
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 8019
+              protocol: TCP
+          
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            
+            - name: DB_HOST
+              value: "postgres-service"
+            
+            - name: DB_PORT
+              value: "5432"
+            
+            - name: DB_NAME
+              value: "banking_stt"
+            
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: db-username
+            
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: db-password
+            
+            - name: REDIS_HOST
+              value: "redis-service"
+            
+            - name: REDIS_PORT
+              value: "6379"
+            
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: redis-password
+                  optional: true
+            
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka-service:9092"
+            
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: openai-api-key
+            
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: jwt-secret
+            
+            - name: STORAGE_TYPE
+              value: "minio"
+            
+            - name: STORAGE_ENDPOINT
+              value: "http://minio-service:9000"
+            
+            - name: STORAGE_BUCKET
+              value: "banking-audio-files"
+            
+            - name: STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: storage-access-key
+            
+            - name: STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: speech-to-text-secrets
+                  key: storage-secret-key
+            
+            - name: JAVA_OPTS
+              value: "-Xms512m -Xmx2048m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+          
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          
+          livenessProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: 8019
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /api/actuator/health/readiness
+              port: 8019
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: audio-storage
+              mountPath: /app/audio-storage
+      
+      volumes:
+        - name: config
+          configMap:
+            name: speech-to-text-configmap
+        - name: audio-storage
+          persistentVolumeClaim:
+            claimName: speech-to-text-pvc
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - speech-to-text-service
+                topologyKey: kubernetes.io/hostname

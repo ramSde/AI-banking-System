@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: speech-to-text-configmap
+  namespace: banking-platform
+  labels:
+    app: speech-to-text-service
+    component: configuration
+spec:
+data:
+  application.yml: |
+    spring:
+      application:
+        name: speech-to-text-service
+      
+      datasource:
+        url: jdbc:postgresql://postgres-service:5432/banking_stt
+        hikari:
+          maximum-pool-size: 20
+          minimum-idle: 5
+          connection-timeout: 30000
+      
+      data:
+        redis:
+          host: redis-service
+          port: 6379
+          lettuce:
+            pool:
+              max-active: 20
+              max-idle: 10
+              min-idle: 5
+      
+      kafka:
+        bootstrap-servers: kafka-service:9092
+        consumer:
+          group-id: stt-consumer-group
+          auto-offset-reset: earliest
+        producer:
+          acks: all
+          retries: 2147483647
+      
+      servlet:
+        multipart:
+          max-file-size: 25MB
+          max-request-size: 30MB
+    
+    server:
+      port: 8019
+      servlet:
+        context-path: /api
+    
+    stt:
+      whisper:
+        model: whisper-1
+        timeout-seconds: 120
+        max-retries: 3
+      
+      audio:
+        max-file-size-mb: 25
+        max-duration-minutes: 30
+        supported-formats: mp3,wav,m4a,flac,ogg,webm
+      
+      processing:
+        max-concurrent-jobs: 10
+        enable-diarization-by-default: false
+    
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,metrics,prometheus
+      health:
+        livenessstate:
+          enabled: true
+        readinessstate:
+          enabled: true
+    
+    logging:
+      level:
+        root: INFO
+        com.banking.stt: DEBUG
