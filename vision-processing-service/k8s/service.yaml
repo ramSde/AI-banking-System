@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vision-processing-service
+  namespace: banking-platform
+  labels:
+    app: vision-processing-service
+    component: backend
+    tier: application
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8018"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  type: ClusterIP
+  selector:
+    app: vision-processing-service
+  ports:
+    - name: http
+      port: 8018
+      targetPort: 8018
+      protocol: TCP
+  sessionAffinity: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vision-processing-service-headless
+  namespace: banking-platform
+  labels:
+    app: vision-processing-service
+    component: backend
+    tier: application
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: vision-processing-service
+  ports:
+    - name: http
+      port: 8018
+      targetPort: 8018
+      protocol: TCP

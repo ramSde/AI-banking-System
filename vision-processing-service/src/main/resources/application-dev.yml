@@ -1,0 +1,71 @@
+# Development Profile Configuration
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/banking_vision_dev?autoReconnect=true&useSSL=false
+    username: dev_user
+    password: dev_password
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# Server Configuration
+server:
+  port: 8018
+
+# Vision Processing Configuration
+vision:
+  ocr:
+    tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata
+    timeout-seconds: 120
+  
+  storage:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket-name: banking-documents-dev
+  
+  processing:
+    async-threshold-bytes: 524288  # 512KB (lower for dev)
+    max-concurrent-tasks: 5
+    enable-preprocessing: true
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.banking.vision: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.kafka: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# SpringDoc Configuration
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html

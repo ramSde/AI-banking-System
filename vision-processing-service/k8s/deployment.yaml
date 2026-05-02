@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vision-processing-service
+  namespace: banking-platform
+  labels:
+    app: vision-processing-service
+    component: backend
+    tier: application
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: vision-processing-service
+  template:
+    metadata:
+      labels:
+        app: vision-processing-service
+        component: backend
+        tier: application
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8018"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: vision-processing-service-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      initContainers:
+        # Wait for PostgreSQL
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgresql-service.banking-platform.svc.cluster.local 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready"
+        
+        # Wait for Redis
+        - name: wait-for-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis-service.banking-platform.svc.cluster.local 6379; do
+                echo "Waiting for Redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        
+        # Wait for Kafka
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z kafka-service.banking-platform.svc.cluster.local 9092; do
+                echo "Waiting for Kafka..."
+                sleep 2
+              done
+              echo "Kafka is ready"
+      
+      containers:
+        - name: vision-processing-service
+          image: banking-platform/vision-processing-service:1.0.0-SNAPSHOT
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - name: http
+              containerPort: 8018
+              protocol: TCP
+          
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: vision-processing-configmap
+                  key: SPRING_PROFILES_ACTIVE
+            
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: vision-processing-configmap
+                  key: JAVA_OPTS
+            
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: db-username
+            
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: db-password
+            
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: redis-password
+            
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: minio-access-key
+            
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: minio-secret-key
+            
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vision-processing-secrets
+                  key: jwt-secret
+          
+          envFrom:
+            - configMapRef:
+                name: vision-processing-configmap
+          
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8018
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8018
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8018
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+            successThreshold: 1
+          
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /app/logs
+            - name: tessdata
+              mountPath: /usr/share/tesseract-ocr/4.00/tessdata
+              readOnly: true
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+      
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: tessdata
+          configMap:
+            name: tesseract-data
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - vision-processing-service
+                topologyKey: kubernetes.io/hostname
+      
+      terminationGracePeriodSeconds: 30

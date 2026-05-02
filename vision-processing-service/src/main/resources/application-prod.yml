@@ -1,0 +1,103 @@
+# Production Profile Configuration
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?autoReconnect=true&useSSL=true&sslmode=require&characterEncoding=utf8
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8018}
+  compression:
+    enabled: true
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+
+# Vision Processing Configuration
+vision:
+  ocr:
+    tessdata-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
+    timeout-seconds: 60
+  
+  storage:
+    endpoint: ${MINIO_ENDPOINT}
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+    bucket-name: ${MINIO_BUCKET:banking-documents-prod}
+    url-expiration-seconds: 1800  # 30 minutes
+  
+  processing:
+    async-threshold-bytes: 1048576  # 1MB
+    max-concurrent-tasks: 10
+    enable-preprocessing: true
+    min-confidence-score: 60.0  # Higher threshold for production
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET}
+
+# Logging Configuration
+logging:
+  level:
+    root: WARN
+    com.banking.vision: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 0.1  # Sample 10% of requests in production
+
+# SpringDoc Configuration
+springdoc:
+  swagger-ui:
+    enabled: false  # Disable Swagger UI in production
+  api-docs:
+    enabled: true  # Keep API docs for internal tools

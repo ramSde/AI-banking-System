@@ -1,0 +1,72 @@
+# Staging Profile Configuration
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:staging-db.internal}:${DB_PORT:5432}/${DB_NAME:banking_vision_staging}?autoReconnect=true&useSSL=true&sslmode=require
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+  
+  jpa:
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:staging-redis.internal}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:staging-kafka.internal:9092}
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8018}
+
+# Vision Processing Configuration
+vision:
+  ocr:
+    tessdata-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
+    timeout-seconds: 90
+  
+  storage:
+    endpoint: ${MINIO_ENDPOINT:https://staging-minio.internal}
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+    bucket-name: ${MINIO_BUCKET:banking-documents-staging}
+  
+  processing:
+    async-threshold-bytes: 1048576  # 1MB
+    max-concurrent-tasks: 8
+    enable-preprocessing: true
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET}
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.banking.vision: INFO
+    org.springframework.web: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# SpringDoc Configuration
+springdoc:
+  swagger-ui:
+    enabled: true

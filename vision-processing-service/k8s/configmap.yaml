@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vision-processing-configmap
+  namespace: banking-platform
+  labels:
+    app: vision-processing-service
+    component: configuration
+    version: v1
+data:
+  # Application Configuration
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8018"
+  ENVIRONMENT: "production"
+  
+  # Database Configuration
+  DB_HOST: "postgresql-service.banking-platform.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "banking_vision"
+  
+  # Redis Configuration
+  REDIS_HOST: "redis-service.banking-platform.svc.cluster.local"
+  REDIS_PORT: "6379"
+  
+  # Kafka Configuration
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service.banking-platform.svc.cluster.local:9092"
+  
+  # MinIO Configuration
+  MINIO_ENDPOINT: "http://minio-service.banking-platform.svc.cluster.local:9000"
+  MINIO_BUCKET: "banking-documents"
+  
+  # Tesseract Configuration
+  TESSERACT_DATA_PATH: "/usr/share/tesseract-ocr/4.00/tessdata"
+  TESSERACT_LANGUAGE: "eng"
+  
+  # JVM Configuration
+  JAVA_OPTS: >-
+    -Xms512m
+    -Xmx2048m
+    -XX:+UseG1GC
+    -XX:MaxGCPauseMillis=200
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp/heapdump.hprof
+    -Djava.security.egd=file:/dev/./urandom
+    -Dspring.profiles.active=prod
+  
+  # Logging Configuration
+  LOGGING_LEVEL_ROOT: "WARN"
+  LOGGING_LEVEL_APP: "INFO"
+  
+  # Actuator Configuration
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+  
+  # Kafka Topics
+  KAFKA_TOPIC_DOCUMENT_UPLOADED: "document-uploaded"
+  KAFKA_TOPIC_PROCESSING_COMPLETED: "processing-completed"
+  KAFKA_TOPIC_PROCESSING_FAILED: "processing-failed"
