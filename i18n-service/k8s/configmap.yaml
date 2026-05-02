@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: i18n-service-config
+  namespace: banking
+  labels:
+    app: i18n-service
+    tier: backend
+data:
+  APPLICATION_NAME: "i18n-service"
+  SERVER_PORT: "8017"
+  SPRING_PROFILES_ACTIVE: "prod"
+  
+  # Database
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "banking_i18n"
+  
+  # Redis
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  
+  # I18n Configuration
+  I18N_DEFAULT_LOCALE: "en"
+  I18N_AUTO_TRANSLATE_ENABLED: "false"
+  I18N_CACHE_EXPIRY_MINUTES: "60"
+  I18N_MAX_TRANSLATION_LENGTH: "5000"
+  
+  # Logging
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_COM_BANKING: "DEBUG"
+  
+  # Actuator
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,prometheus,info"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+  
+  # OpenTelemetry
+  OTEL_SERVICE_NAME: "i18n-service"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_METRICS_EXPORTER: "prometheus"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector:4317"
